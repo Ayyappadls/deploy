@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DLSMirror — Decision Intelligence Operating System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF8F3;
+    --paper-raised:#FFFFFF;
+    --ink:#22201C;
+    --ink-soft:#524D44;
+    --stone:#8C8577;
+    --stone-faint:#B8B2A4;
+    --hairline:#E6E0D2;
+    --hairline-strong:#D8D0BE;
+    --accent:#3E5B50;
+    --accent-deep:#2C4239;
+    --accent-soft:#E7EEE9;
+    --accent-line:#C4D3CB;
+    --amber:#9B7A45;
+    --amber-soft:#F1E9D8;
+    --slate:#5C6672;
+    --serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+  }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 28px;
+    border-bottom:1px solid var(--hairline);
+    background:var(--paper);
+    position:sticky; top:0; z-index:20;
+  }
+  .brand{ display:flex; align-items:baseline; gap:10px; }
+  .brand-mark{ font-family:var(--serif); font-size:20px; font-weight:600; color:var(--ink); letter-spacing:-0.01em; }
+  .brand-tag{ font-size:12px; color:var(--stone); font-weight:500; }
+  .topbar-right{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; row-gap:8px; }
+  select.quiet{
+    appearance:none; -webkit-appearance:none;
+    background:transparent; border:1px solid var(--hairline-strong);
+    border-radius:6px; padding:6px 28px 6px 10px; font-size:13px; color:var(--ink-soft);
+    font-family:var(--sans); cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0 L5 6 L10 0' fill='none' stroke='%238C8577' stroke-width='1.3'/></svg>");
+    background-repeat:no-repeat; background-position:right 10px center;
+  }
+  select.quiet:focus{ outline:2px solid var(--accent-line); outline-offset:1px; }
+  .rail-toggle{ display:none; background:none; border:1px solid var(--hairline-strong); border-radius:6px; padding:6px 10px; cursor:pointer; color:var(--ink-soft); font-family:var(--sans); font-size:13px;}
+
+  /* ---------- SHELL ---------- */
+  .shell{
+    display:flex; flex:1; min-height:0;
+  }
+  .leftrail{
+    width:230px; flex-shrink:0; border-right:1px solid var(--hairline);
+    padding:26px 18px; display:flex; flex-direction:column; gap:2px;
+    background:var(--paper);
+  }
+  .stagebtn{
+    display:flex; align-items:flex-start; gap:12px; text-align:left;
+    padding:11px 8px; border-radius:8px; border:none; background:transparent; cursor:pointer;
+    font-family:var(--sans); position:relative;
+  }
+  .stagebtn:hover{ background:var(--accent-soft); }
+  .stagebtn .dotcol{ display:flex; flex-direction:column; align-items:center; width:14px; padding-top:3px; }
+  .stage-dot{ width:8px; height:8px; border-radius:50%; background:var(--hairline-strong); flex-shrink:0; }
+  .stage-thread{ width:1px; flex:1; background:var(--hairline); margin-top:2px; min-height:22px; }
+  .stagebtn:last-child .stage-thread{ display:none; }
+  .stagebtn.current .stage-dot{ background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .stagebtn.visited .stage-dot{ background:var(--accent-line); }
+  .stage-label-en{ font-size:13.5px; font-weight:500; color:var(--ink-soft); }
+  .stagebtn.current .stage-label-en{ color:var(--ink); font-weight:600; }
+  .stage-label-local{ font-size:11.5px; color:var(--stone); margin-top:1px; }
+  .stage-signal-flag{
+    position:absolute; right:6px; top:10px; width:6px; height:6px; border-radius:50%;
+    background:var(--amber);
+  }
+  .leftrail-foot{ margin-top:auto; padding-top:16px; border-top:1px solid var(--hairline); }
+  .about-link{ font-size:12px; color:var(--stone); cursor:pointer; background:none; border:none; font-family:var(--sans); padding:4px 8px; text-decoration:underline; text-decoration-color:var(--hairline-strong); }
+
+  .center{
+    flex:1; min-width:0; overflow-y:auto; padding:40px 48px 90px;
+  }
+  .center-inner{ max-width:680px; margin:0 auto; }
+
+  .rightrail{
+    width:300px; flex-shrink:0; border-left:1px solid var(--hairline);
+    padding:24px 20px; overflow-y:auto; background:var(--paper);
+  }
+  .rr-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .rr-title{ font-size:12px; letter-spacing:0.04em; color:var(--stone); font-weight:600; }
+  .layer-card{ border-bottom:1px solid var(--hairline); padding:12px 2px; cursor:pointer; }
+  .layer-head{ display:flex; justify-content:space-between; align-items:center; }
+  .layer-name{ font-size:13.5px; font-weight:500; color:var(--ink); }
+  .layer-conf{ font-size:11px; color:var(--stone); }
+  .layer-body{ margin-top:8px; font-size:12.5px; color:var(--ink-soft); display:none; }
+  .layer-card.open .layer-body{ display:block; }
+  .layer-row{ margin-bottom:6px; }
+  .layer-row b{ color:var(--ink-soft); font-weight:600; font-size:11.5px; text-transform:none; }
+
+  @keyframes pulseFade{0%{opacity:.5}50%{opacity:1}100%{opacity:.5}}
+  .loading-line{ font-size:14px; color:var(--stone); padding:22px 0; animation:pulseFade 1.8s ease-in-out infinite; }
+  .error-block{ margin-top:16px; padding:14px 16px; background:var(--amber-soft); border-radius:8px; font-size:13.5px; color:var(--amber); display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; }
+  .mode-toggle{ display:flex; border:1px solid var(--hairline-strong); border-radius:20px; overflow:hidden; }
+  .mode-btn{ padding:6px 13px; font-size:12px; background:transparent; border:none; color:var(--stone); cursor:pointer; font-family:var(--sans); }
+  .mode-btn.active{ background:var(--ink); color:#fff; }
+  .free-reply{ margin-top:16px; }
+  .free-reply label{ font-size:12px; color:var(--stone); display:block; margin-bottom:6px; }
+  .free-reply-row{ display:flex; gap:8px; align-items:flex-start; }
+  .free-reply-row textarea{ flex:1; min-height:44px; }
+  .badge-conf{ font-size:10.5px; color:var(--stone); border:1px solid var(--hairline-strong); border-radius:10px; padding:2px 8px; }
+  .evidence-legend{ margin-top:18px; padding-top:14px; border-top:1px solid var(--hairline); }
+  .ev-item{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--stone); margin-bottom:6px; }
+  .ev-swatch{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+  .other-layer-row{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--stone); padding:6px 2px; border-bottom:1px solid var(--hairline); }
+
+  /* ---------- CENTER CONTENT PRIMITIVES ---------- */
+  .eyebrow{ font-size:12px; color:var(--stone); margin-bottom:6px; }
+  h1.stage-title{ font-family:var(--serif); font-size:30px; font-weight:600; margin:0 0 8px; letter-spacing:-0.01em; }
+  .stage-sub{ color:var(--ink-soft); font-size:14.5px; margin-bottom:32px; max-width:520px; }
+
+  .prompt-line{ font-family:var(--serif); font-size:22px; line-height:1.4; margin-bottom:18px; color:var(--ink); }
+  textarea.input-box{
+    width:100%; min-height:88px; border:1px solid var(--hairline-strong); border-radius:10px;
+    padding:14px 16px; font-family:var(--sans); font-size:14.5px; color:var(--ink); resize:vertical;
+    background:var(--paper-raised);
+  }
+  textarea.input-box:focus{ outline:none; border-color:var(--accent-line); box-shadow:0 0 0 3px var(--accent-soft); }
+  .input-actions{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+  .btn{
+    font-family:var(--sans); font-size:13.5px; font-weight:600; border-radius:7px; padding:9px 16px;
+    border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer;
+  }
+  .btn:hover{ background:var(--accent-deep); }
+  .btn.secondary{ background:transparent; color:var(--ink-soft); border:1px solid var(--hairline-strong); font-weight:500; }
+  .btn.secondary:hover{ border-color:var(--stone); color:var(--ink); }
+  .link-btn{ background:none; border:none; color:var(--accent); font-family:var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; padding:0; }
+
+  .convo{ margin-top:26px; display:flex; flex-direction:column; gap:18px; }
+  .turn-owner{ font-size:14.5px; color:var(--ink); border-left:2px solid var(--hairline-strong); padding-left:14px; }
+  .turn-owner .who{ font-size:11px; color:var(--stone); margin-bottom:3px; display:block; }
+  .turn-mirror{ padding:16px 18px; background:var(--paper-raised); border:1px solid var(--hairline); border-radius:10px; }
+  .turn-mirror .who{ font-size:11px; color:var(--accent); font-weight:600; margin-bottom:6px; display:block; letter-spacing:0.02em; }
+  .turn-mirror .q{ font-size:15.5px; color:var(--ink); }
+  .why-toggle{ margin-top:10px; font-size:12px; color:var(--stone); cursor:pointer; }
+  .why-body{ margin-top:6px; font-size:12.5px; color:var(--ink-soft); background:var(--accent-soft); padding:8px 10px; border-radius:6px; display:none; }
+  .why-body.open{ display:block; }
+  .quick-replies{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .chip{
+    font-size:13px; padding:8px 14px; border-radius:20px; border:1px solid var(--hairline-strong);
+    background:var(--paper-raised); color:var(--ink-soft); cursor:pointer; font-family:var(--sans);
+  }
+  .chip:hover{ border-color:var(--accent); color:var(--accent); }
+
+  .nudge{ margin-top:28px; padding:16px 18px; border:1px dashed var(--hairline-strong); border-radius:10px; font-size:13.5px; color:var(--ink-soft); display:flex; justify-content:space-between; align-items:center; gap:16px; }
+
+  /* flow diagram (understand / transition) */
+  .flow{ display:flex; flex-direction:column; align-items:flex-start; margin:28px 0; }
+  .flow-step{ display:flex; align-items:flex-start; gap:14px; }
+  .flow-node{ padding:12px 16px; background:var(--paper-raised); border:1px solid var(--hairline-strong); border-radius:9px; font-size:14px; font-weight:500; min-width:220px; }
+  .flow-node .tag{ font-size:10.5px; color:var(--stone); display:block; margin-bottom:3px; font-weight:600; letter-spacing:0.03em; }
+  .flow-connector{ width:1px; height:26px; background:var(--hairline-strong); margin-left:16px; }
+  .flow-result{ margin-top:6px; padding:16px 18px; background:var(--accent-soft); border-radius:9px; border:1px solid var(--accent-line); font-size:14px; color:var(--accent-deep); font-weight:500; max-width:420px; }
+
+  .callout{ margin-top:14px; font-size:12.5px; color:var(--amber); background:var(--amber-soft); display:inline-block; padding:5px 10px; border-radius:6px; }
+
+  .section-block{ margin-bottom:30px; }
+  .section-label{ font-size:11.5px; text-transform:none; color:var(--stone); font-weight:600; letter-spacing:0.03em; margin-bottom:6px; }
+  .section-text{ font-size:15px; color:var(--ink); }
+  .thesis{ font-family:var(--serif); font-size:21px; line-height:1.5; color:var(--ink); margin:6px 0 10px; }
+  .evidence-trace{ font-size:12px; color:var(--stone); cursor:pointer; text-decoration:underline; text-decoration-color:var(--hairline-strong); }
+  .trace-body{ display:none; margin-top:10px; font-size:12.5px; color:var(--ink-soft); border-left:2px solid var(--accent-line); padding-left:12px; }
+  .trace-body.open{ display:block; }
+
+  .decision-card{ margin-top:30px; padding:22px; border:1px solid var(--hairline-strong); border-radius:12px; background:var(--paper-raised); }
+  .decision-card .dc-label{ font-size:11px; color:var(--stone); font-weight:600; letter-spacing:0.03em; margin-bottom:4px; }
+  .decision-card .dc-value{ font-size:15px; color:var(--ink); margin-bottom:16px; }
+  .decision-card .dc-value:last-child{ margin-bottom:0; }
+  .dc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+  .stake-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+  .stake-tab{ font-size:13px; padding:8px 14px; border-radius:8px; border:1px solid var(--hairline-strong); background:transparent; color:var(--ink-soft); cursor:pointer; font-family:var(--sans); }
+  .stake-tab.active{ background:var(--ink); border-color:var(--ink); color:#fff; }
+  .stake-card .row{ margin-bottom:16px; }
+
+  .loop-strip{ margin-top:50px; padding-top:26px; border-top:1px solid var(--hairline); }
+  .loop-track{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .loop-node{ font-size:12px; color:var(--stone); padding:6px 10px; border:1px solid var(--hairline-strong); border-radius:16px; }
+  .loop-node.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .loop-arrow{ color:var(--stone-faint); font-size:12px; }
+  .loop-note{ margin-top:14px; font-size:12.5px; color:var(--stone); }
+  .loop-banner{ margin-top:14px; padding:12px 14px; background:var(--amber-soft); border-radius:8px; font-size:13px; color:var(--amber); display:none; }
+  .loop-banner.show{ display:block; }
+
+  .empty{ padding:60px 0; text-align:left; color:var(--stone); }
+  .empty .prompt-line{ color:var(--stone); }
+
+  /* about modal */
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(34,32,28,0.35); display:none; align-items:center; justify-content:center; z-index:50; padding:24px; }
+  .modal-backdrop.show{ display:flex; }
+  .debug-overlay{ position:fixed; inset:0; background:#14161a; z-index:60; display:none; overflow-y:auto; padding:28px 40px; font-family:'SF Mono', Consolas, monospace; color:#c9d1d9; }
+  .debug-overlay.show{ display:block; }
+  .debug-overlay h2{ font-family:var(--sans); color:#fff; font-size:18px; margin:0 0 4px; }
+  .debug-overlay .debug-close{ position:fixed; top:24px; right:32px; background:#242830; border:none; color:#c9d1d9; padding:8px 14px; border-radius:6px; cursor:pointer; font-family:var(--sans); z-index:61; }
+  .debug-section{ margin:22px 0; }
+  .debug-section h3{ font-family:var(--sans); color:#8ab4f8; font-size:12.5px; text-transform:uppercase; letter-spacing:0.04em; margin:0 0 8px; }
+  .debug-block{ background:#1c2027; border:1px solid #2b303a; border-radius:6px; padding:10px 12px; font-size:12px; line-height:1.6; white-space:pre-wrap; word-break:break-word; margin-bottom:6px; }
+  .contradiction-banner{ margin-top:14px; padding:12px 14px; background:#FBEAEA; border:1px solid #E3B8B8; border-radius:8px; font-size:13px; color:#8A3B3B; }
+  .outcome-box{ margin-top:16px; padding:16px 18px; border:1px solid var(--hairline-strong); border-radius:10px; background:var(--paper-raised); }
+  .outcome-box label{ font-size:12px; color:var(--stone); display:block; margin-bottom:6px; }
+  .outcome-hint{ font-size:12.5px; color:var(--ink-soft); margin-bottom:10px; }
+  .modal{ background:var(--paper-raised); max-width:520px; width:100%; border-radius:12px; padding:28px; max-height:80vh; overflow-y:auto; }
+  .modal h3{ font-family:var(--serif); font-size:20px; margin:0 0 14px; }
+  .modal p, .modal li{ font-size:13.5px; color:var(--ink-soft); line-height:1.6; }
+  .modal ul{ padding-left:18px; }
+  .modal .close-x{ float:right; background:none; border:none; font-size:20px; color:var(--stone); cursor:pointer; }
+
+  @media (max-width: 980px){
+    .rightrail{ display:none; }
+    .rail-toggle{ display:inline-block; }
+  }
+  @media (max-width: 720px){
+    .leftrail{ position:fixed; left:0; top:64px; bottom:0; z-index:30; transform:translateX(-100%); transition:transform .2s ease; box-shadow:2px 0 12px rgba(0,0,0,0.08); }
+    .leftrail.open{ transform:translateX(0); }
+    .center{ padding:28px 20px 90px; }
+    .dc-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<div class="modal-backdrop" id="aboutModal">
+  <div class="modal">
+    <button class="close-x" onclick="toggleAbout(false)">×</button>
+    <h3>About this prototype</h3>
+    <p>DLSMirror has two modes, shown at the top of the screen.</p>
+    <p><b>Live mode</b> (the default) runs a real reasoning engine as you use it, and it no longer stops asking questions after a fixed number \u2014 it keeps going until the evidence is actually sufficient: no unresolved contradiction, no critical piece of information missing, no important signal left unsupported, no untested relationship between multiple active signals. That decision is made by the app itself, not by the model.</p>
+    <p><b>Evidence has a real lifecycle.</b> Every fact starts as owner-provided, observed, inferred, or a hypothesis \u2014 and it can only become <b>verified</b> through an explicit step the app controls (the owner confirming a targeted follow-up question), never because the model simply sounds confident. Each item keeps both your original wording and a normalized meaning, so nothing gets lost in translation or paraphrase.</p>
+    <p><b>Everything is traceable through a graph.</b> Evidence, signals, relationships, patterns, the diagnosis, and the commercial thesis are connected nodes and edges, not separate paragraphs. Opening "Why DLSMirror thinks this" on the Diagnose screen walks that graph backward for you. Confidence is computed from how much and how independent the supporting evidence is \u2014 ten repeats of the same statement don't count as ten proofs.</p>
+    <p><b>Demo mode</b> uses a small set of fixed, pre-written example situations instead \u2014 useful for a quick, offline walkthrough, but limited to a handful of common situations.</p>
+    <p><b>Continuous learning:</b> once a decision is on file, you can record what actually happened. DLSMirror compares it to what was expected, names the difference and a possible explanation, and turns it into a new signal that reopens Discovery \u2014 nothing is deleted or restarted from zero, and older diagnoses are archived rather than erased when new evidence changes the picture.</p>
+    <p><b>Contradiction detection:</b> if something you say later doesn't square with something you said earlier, DLSMirror flags it, keeps it open, and asks about it directly \u2014 it's never silently marked resolved just because the conversation moves on.</p>
+    <p><b>An important change from earlier prototypes:</b> this browser never talks to Anthropic, or any reasoning provider, directly. Every reasoning call goes to this app's own backend at <code>/api/reason</code>, which holds the provider credential, builds the actual prompts, validates the structured result, and only then hands back clean data. Open your browser's network inspector \u2014 you'll see requests to <code>/api/reason</code> and nothing else.</p>
+    <p>For anyone curious what's happening underneath, there's a small "Debug" link in the top bar that shows the discovery assessment, the full evidence lifecycle, the relationship graph, and the diagnostic chain DLSMirror is building \u2014 meant for development, not for the everyday experience.</p>
+  </div>
+</div>
+
+<div class="debug-overlay" id="debugOverlay">
+  <button class="debug-close" id="debugClose">Close debug view</button>
+  <div id="debugContent"></div>
+</div>
+
+<script>
+/* ============================= LANGUAGE / STAGE DATA ============================= */
+const LANGS = [
+  {code:'en', name:'English', enName:'English'},
+  {code:'hi', name:'हिन्दी', enName:'Hindi'},
+  {code:'ta', name:'தமிழ்', enName:'Tamil'},
+  {code:'te', name:'తెలుగు', enName:'Telugu'},
+  {code:'kn', name:'ಕನ್ನಡ', enName:'Kannada'},
+  {code:'ml', name:'മലയാളം', enName:'Malayalam'},
+  {code:'mr', name:'मराठी', enName:'Marathi'},
+  {code:'gu', name:'ગુજરાતી', enName:'Gujarati'},
+];
+function langName(){ return (LANGS.find(l=>l.code===state.lang)||LANGS[0]).enName; }
+
+const STAGE_DEFS = [
+  {id:'discover', en:'Discover', local:{hi:'खोजें', ta:'கண்டறியவும்', te:'కనుగొనండి', kn:'ಶೋಧಿಸಿ', ml:'കണ്ടെത്തുക', mr:'शोधा', gu:'શોધો'}},
+  {id:'understand', en:'Understand', local:{hi:'समझें', ta:'புரிந்துகொள்', te:'అర్థం చేసుకోండి', kn:'ಅರ್ಥಮಾಡಿಕೊಳ್ಳಿ', ml:'മനസ്സിലാക്കുക', mr:'समजून घ्या', gu:'સમજો'}},
+  {id:'diagnose', en:'Diagnose', local:{hi:'निदान करें', ta:'நோயறிதல்', te:'నిర్ధారణ', kn:'ರೋಗನಿರ್ಣಯ', ml:'രോഗനിർണയം', mr:'निदान', gu:'નિદાન'}},
+  {id:'transition', en:'Transition', local:{hi:'बदलाव', ta:'மாற்றம்', te:'పరివర్తన', kn:'ಪರಿವರ್ತನೆ', ml:'മാറ്റം', mr:'संक्रमण', gu:'સંક્રમણ'}},
+  {id:'behavior', en:'Enable Change', local:{hi:'बदलाव लाएं', ta:'மாற்றத்தை இயக்கு', te:'మార్పును ప్రారంభించండి', kn:'ಬದಲಾವಣೆ ಸಕ್ರಿಯಗೊಳಿಸಿ', ml:'മാറ്റം സാധ്യമാക്കുക', mr:'बदल घडवा', gu:'પરિવર્તન સક્ષમ કરો'}},
+  {id:'stakeholder', en:'Stakeholder Alignment', local:{hi:'हितधारक संरेखण', ta:'பங்குதாரர் ஒருங்கிணைப்பு', te:'వాటాదారుల సమన్వయం', kn:'ಪಾಲುದಾರರ ಹೊಂದಾಣಿಕೆ', ml:'പങ്കാളി വിന്യാസം', mr:'भागधारक संरेखन', gu:'હિસ્સેદાર ગોઠવણી'}},
+];
+
+const PROMPT_LOCAL = {
+  en:'Tell DLSMirror what is happening.',
+  hi:'DLSMirror को बताएं क्या हो रहा है।',
+  ta:'என்ன நடக்கிறது என்று DLSMirror-இடம் சொல்லுங்கள்.',
+  te:'ఏమి జరుగుతుందో DLSMirror కి చెప్పండి.',
+  kn:'ಏನಾಗುತ್ತಿದೆ ಎಂದು DLSMirror ಗೆ ಹೇಳಿ.',
+  ml:'എന്താണ് സംഭവിക്കുന്നതെന്ന് DLSMirror-നോട് പറയൂ.',
+  mr:'काय घडत आहे ते DLSMirror ला सांगा.',
+  gu:'શું થઈ રહ્યું છે તે DLSMirror ને કહો.',
+};
+
+const EXAMPLES = [
+  "Sales are good but I never have cash left by evening, and my regulars take credit and pay me back late.",
+  "My staff keep coming to me for every decision. I can't take a single day off.",
+  "New customers keep coming, but old customers quietly stop showing up and I don't know why.",
+  "Business has been busy for six months, but I feel like I'm working harder and making less. I've had to hire two more people and suppliers keep raising prices."
+];
+
+const LAYER_ORDER = ['owner','offer','customer','revenue','market','operations','finance','organization','commercial','external'];
+const LAYER_PLAIN_LABEL = {
+  owner:'You & how you run things', offer:'What you sell', customer:'Your customers', revenue:'Money in',
+  market:'Your market', operations:'Day-to-day running', finance:'Cash & finances', organization:'Your team',
+  commercial:'Overall picture', external:'Outside factors'
+};
+const STAKE_LABELS = {owner:'You', employee:'Employee', customer:'Customer', supplier:'Supplier', investor:'Investor', partner:'Partner'};
+const KNOWN_STATUSES = ['OWNER-PROVIDED','OBSERVED','CALCULATED','VERIFIED'];
+const IMPACT_SCORE = {low:1, medium:2, high:3};
+
+const LOADING_TEXT = {
+  discovery:'Reading what you shared...', understand:'Connecting the signals...',
+  diagnose:'Looking for what\u2019s really going on...', transition:'Working out what needs to change...',
+  behavior:'Thinking through what that takes, day to day...', stakeholder:'Translating this for who needs to hear it...',
+  outcome:'Comparing what happened to what was expected...',
+};
+
+/* ============================= ID / CONFIDENCE HELPERS ============================= */
+let idSeq = 0;
+function genId(prefix){ idSeq++; return (prefix||'id')+'_'+Date.now().toString(36)+'_'+idSeq; }
+function clamp(n){ return Math.max(0.05, Math.min(0.95, Math.round(n*100)/100)); }
+function pct(n){ return Math.round((n||0)*100)+'%'; }
+
+const EVIDENCE_BASE_CONF = {'OWNER-PROVIDED':0.55,'OBSERVED':0.60,'CALCULATED':0.70,'INFERRED':0.35,'HYPOTHESIS':0.22,'VERIFIED':0.90,'UNKNOWN':0.08};
+function evidenceConfidence(item, allEvidence){
+  let base = EVIDENCE_BASE_CONF[item.evidenceStatus];
+  if(base===undefined) base = 0.4;
+  // independence check: count DISTINCT statements in the same layer, not raw repeats of the same wording
+  const seen = new Set();
+  (allEvidence||[]).filter(e=>e.layer===item.layer).forEach(e=>{ seen.add((e.normalizedMeaning||e.statement||'').toLowerCase().slice(0,40)); });
+  base += Math.min(0.15, Math.max(0, seen.size-1)*0.04);
+  return clamp(base);
+}
+function signalStrength(sig){
+  const n = (sig.supportingEvidenceIds||[]).length;
+  if(n===0) return 'weak';
+  if(n===1) return 'developing';
+  return 'supported';
+}
+function signalConfidence(sig, hasContradiction){
+  const n = (sig.supportingEvidenceIds||[]).length;
+  let base = {low:0.30, medium:0.45, high:0.55}[sig.severity];
+  if(base===undefined) base = 0.4;
+  base += Math.min(0.25, n*0.08);
+  if(hasContradiction) base -= 0.15;
+  return clamp(base);
+}
+function relationshipConfidence(rel){
+  const n = (rel.supportingEvidenceIds||[]).length;
+  return clamp(0.30 + Math.min(0.40, n*0.12));
+}
+function patternConfidence(relIds){
+  const rels = relIds.map(id=>state.reality.relationships.find(r=>r.id===id)).filter(Boolean);
+  if(!rels.length) return 0.30;
+  return clamp(rels.reduce((s,r)=>s+r.confidence,0)/rels.length);
+}
+function thesisConfidenceFrom(evidenceIds, contraCount){
+  let base = 0.40 + Math.min(0.30, (evidenceIds||[]).length*0.05) - (contraCount||0)*0.15;
+  return clamp(base);
+}
+function gapScore(g){
+  return (IMPACT_SCORE[g.importance]||1)*2 + (IMPACT_SCORE[g.diagnosticImpact]||1) + (IMPACT_SCORE[g.decisionImpact]||1) + (IMPACT_SCORE[g.relationshipImpact]||1);
+}
+function topOpenGap(){
+  const open = state.reality.knowledgeGaps.filter(g=>!g.resolved);
+  if(!open.length) return null;
+  return open.slice().sort((a,b)=>gapScore(b)-gapScore(a))[0];
+}
+function knownEvidenceIds(){ return state.reality.evidence.map(e=>e.id); }
+function filterValidIds(ids, validSet){ return (ids||[]).filter(id=>validSet.includes(id)); }
+
+/* ============================= GRAPH HELPERS ============================= */
+function addGraphNode(type,id,label,confidence){
+  state.reality.intelligenceGraph.nodes.push({id, type, label:(label||'').toString().slice(0,140), confidence:confidence||0, timestamp:Date.now(), stale:false});
+}
+function addGraphEdge(from,to,type,explanation,confidence,evidenceIds){
+  if(!from || !to) return;
+  state.reality.intelligenceGraph.edges.push({id:genId('edge'), from, to, type, explanation:explanation||'', confidence:confidence||0, evidenceIds:evidenceIds||[], timestamp:Date.now()});
+}
+function markGraphStale(){
+  state.reality.intelligenceGraph.nodes.forEach(n=>{ if(['relationship','pattern','diagnosis','thesis'].includes(n.type)) n.stale = true; });
+}
+function traceBack(nodeId, maxDepth){
+  const visited = new Set([nodeId]); const chain = []; let frontier = [nodeId];
+  for(let d=0; d<(maxDepth||6) && frontier.length; d++){
+    let next = [];
+    frontier.forEach(id=>{
+      state.reality.intelligenceGraph.edges.filter(e=>e.to===id).forEach(e=>{
+        if(!visited.has(e.from)){
+          visited.add(e.from);
+          const node = state.reality.intelligenceGraph.nodes.find(n=>n.id===e.from);
+          if(node){ chain.push(node); next.push(e.from); }
+        }
+      });
+    });
+    frontier = next;
+  }
+  return chain;
+}
+
+/* ============================= EVIDENCE LIFECYCLE ============================= */
+function createVerificationGap(evidenceItem, question){
+  if(!question) return;
+  const gap = { id:genId('gap'), question:question, missingInformation:'Confirming: '+(evidenceItem.normalizedMeaning||evidenceItem.statement),
+    importance:'high', diagnosticImpact:'high', decisionImpact:'medium', relationshipImpact:'low',
+    relatedLayer:evidenceItem.layer, verifiesEvidenceId:evidenceItem.id, timestamp:Date.now(), resolved:false };
+  state.reality.knowledgeGaps.push(gap);
+  evidenceItem.verification = { required:true, status:'pending', question:question, method:'' };
+}
+function createContradictionGap(contradiction){
+  const gap = { id:genId('gap'), question: 'Can you help me understand \u2014 '+(contradiction.note||'these two things don\u2019t quite line up')+'?',
+    missingInformation:'Resolving a contradiction', importance:'high', diagnosticImpact:'high', decisionImpact:'medium', relationshipImpact:'low',
+    relatedLayer:'commercial', resolvesContradictionId:contradiction.id, timestamp:Date.now(), resolved:false };
+  state.reality.knowledgeGaps.push(gap);
+}
+function verifyEvidence(evidenceId, verificationData){
+  const item = state.reality.evidence.find(e=>e.id===evidenceId);
+  if(!item) return;
+  item.evidenceStatus = 'VERIFIED';
+  item.verification = { required:true, status:'verified', question:(item.verification&&item.verification.question)||'', method:(verificationData&&verificationData.method)||'owner_confirmation', timestamp:Date.now() };
+  item.confidence = Math.max(item.confidence, 0.85);
+  const node = state.reality.intelligenceGraph.nodes.find(n=>n.id===evidenceId);
+  if(node){ node.confidence = item.confidence; }
+  markGraphStale();
+}
+
+/* ============================= DISCOVERY SUFFICIENCY ENGINE (deterministic, app-owned) ============================= */
+function evaluateDiscoverySufficiency(){
+  const openGaps = state.reality.knowledgeGaps.filter(g=>!g.resolved);
+  const criticalGaps = openGaps.filter(g=>g.importance==='high');
+  const unresolvedContradictions = state.reality.contradictions.filter(c=>!c.resolved);
+  const activeSignals = state.reality.signals.filter(s=>s.status==='active');
+  const weakHighSeveritySignals = activeSignals.filter(s=>signalStrength(s)==='weak' && s.severity==='high');
+  const untestedRelationships = (activeSignals.length>=2 && state.reality.relationships.length===0)
+    ? ['Multiple signals are active but haven\u2019t been connected to each other yet'] : [];
+  const evidenceCount = state.reality.evidence.length;
+  const decisionContextComplete = evidenceCount>=3 && activeSignals.length>=1;
+
+  const sufficient = unresolvedContradictions.length===0 && criticalGaps.length===0 &&
+    weakHighSeveritySignals.length===0 && untestedRelationships.length===0 && decisionContextComplete;
+
+  let reason;
+  if(unresolvedContradictions.length) reason = 'There\u2019s something that doesn\u2019t quite add up yet: '+unresolvedContradictions[0].note;
+  else if(criticalGaps.length) reason = 'A piece of information that would materially change the picture is still missing.';
+  else if(weakHighSeveritySignals.length) reason = 'An important signal isn\u2019t backed by enough evidence yet: '+weakHighSeveritySignals[0].signal;
+  else if(untestedRelationships.length) reason = untestedRelationships[0];
+  else if(evidenceCount<3) reason = 'Not enough has been shared yet to responsibly form a view.';
+  else reason = 'Core reality, signals, and relationships are understood well enough to move forward.';
+
+  const assessment = {
+    realityCoverage: Math.min(1, evidenceCount/6),
+    criticalUnknowns: criticalGaps.map(g=>g.question),
+    unresolvedContradictions: unresolvedContradictions.map(c=>c.note),
+    unsupportedSignals: weakHighSeveritySignals.map(s=>s.signal),
+    untestedRelationships, decisionContextComplete, sufficient, reason,
+    confidence: sufficient ? 0.7 : 0.35,
+  };
+  state.reality.discoveryAssessment = assessment;
+  return assessment;
+}
+
+/* ============================= DEMO-MODE SEEDED ENGINE (unchanged, offline, illustrative only) ============================= */
+const THEMES = {
+  cash: {
+    keywords:['cash','money','credit','udhaar','pay me','pay later','owe','payment','no cash','out of money','running low','short of cash'],
+    followup:{ text:'When money comes in, does it usually stay with you \u2014 or does it go straight back out to stock, staff, or people who owe you?',
+      why:'You mentioned cash and money in the same breath as sales \u2014 this checks exactly where it\u2019s slipping.',
+      replies:['It goes straight back into buying more stock','A lot of it is owed to me by customers who pay late',"I'm honestly not sure where it goes"] },
+    clear:'Sales are coming in and business feels busy.', unclear:'Exactly where the cash goes after it comes in.',
+    changing:'Cash on hand feels tighter even as sales stay steady or grow.', signal:'Money is moving through the business faster than it is staying in it.',
+    flow:[{tag:'YOU SHARED',text:'Sales are steady or growing'},{tag:'YOU SHARED',text:'Cash feels tight'},{tag:'LIKELY',text:'Cash is going out before it properly comes in'}],
+    pattern:'This usually means cash is leaving faster than it\u2019s arriving \u2014 into stock, into credit given to customers, or into costs that creep up unnoticed.',
+    diagnosis:{ what:'You\u2019re making sales, but the cash from them isn\u2019t staying in your hands long enough to feel like progress.',
+      why:'Some of what you earn goes straight back out \u2014 to restock, to pay others, or it\u2019s tied up with people who owe you and haven\u2019t paid yet.',
+      conflict:'You\u2019re trying to grow the business, but the money keeps leaving before it can build up into something you can use.',
+      root:'There\u2019s no clear view of where the money goes after a sale, so it\u2019s hard to catch the leak while it\u2019s happening.',
+      leverage:'How quickly money owed to you actually comes back.', thesis:'The business is growing, but growth is quietly draining your cash instead of building it up.',
+      decision:'Get a clearer, faster read on money owed to you before taking on more.', action:'Pick one thing this week \u2014 like collecting what a regular customer already owes you \u2014 and do it before anything else.' },
+    transition:{current:'Busy, sales-first way of running things', constraint:'No clear view of where cash goes after a sale', required:'A simple, steady way of tracking what comes in and what goes back out', future:'Growth that actually leaves you with more in hand, not less'},
+    behavior:{current:'Money is tracked in your head, day to day', friction:'No simple habit for checking what\u2019s owed to you', inertia:'It\u2019s always been managed this way', required:'A short weekly check of what came in and what\u2019s still owed', capability:'A simple notebook, register, or app', adoption:'You do the check most days', accountability:'A weekly moment to look at it together', measure:'Less money sitting unpaid over time'},
+    stakeholders:{ owner:{means:'A clearer sense of what\u2019s really left after a busy day', understand:'Being busy and being profitable aren\u2019t always the same thing', resist:'It can feel like one more thing to track', action:'Start the simple weekly check this week'},
+      helper:{means:'A clear, simple habit to follow instead of guessing', understand:'This makes their job easier over time', resist:'Extra steps can feel like more work at first', action:'Note down what\u2019s sold on credit, every time'},
+      customer:{means:'You may ask for payment a little sooner', understand:'This keeps the business steady enough to keep serving them well', resist:'Regulars used to easy credit may push back', action:'Be upfront and warm about the new expectation'},
+      supplier:{means:'Steadier payments from you over time', understand:'You\u2019re working to pay on time', resist:'', action:'Let them know if a payment will be a little different'} },
+    decisionAction:{decision:'Get a faster read on money owed to you before taking on more growth', why:'Cash is currently leaving faster than it\u2019s staying', evidence:'What you shared about sales feeling steady but cash feeling tight', owner:'You', action:'Collect on one outstanding payment this week', success:'Cash on hand grows even when sales stay the same'}
+  },
+  overload: {
+    keywords:['alone','myself','all the time','no time','no one else','only me','no help','take a day off','everything falls on me','team asks me','staff ask me','keeps asking me','every decision'],
+    followup:{ text:'When you\u2019re not around for a day, what actually stops?', why:'You mentioned handling things yourself, constantly \u2014 this checks whether the business needs you, or just clearer rules for others.',
+      replies:['Sales still happen, but decisions pile up for me','Things slow down noticeably without me there',"I haven't really tested it"] },
+    clear:'The business runs, but almost entirely through you.', unclear:'What could safely run without you making every call.',
+    changing:'The load on you is growing as the business grows.', signal:'Growth is adding more to your plate instead of less.',
+    flow:[{tag:'YOU SHARED',text:'You handle most decisions'},{tag:'YOU SHARED',text:'Others ask you before acting'},{tag:'LIKELY',text:'The business can\u2019t yet run without you'}],
+    pattern:'This usually means the business has grown faster than the habits and trust needed to share the load \u2014 so everything funnels through one person: you.',
+    diagnosis:{ what:'Almost every decision \u2014 big or small \u2014 still needs to pass through you personally.',
+      why:'No one else has been given clear room to decide things on their own, so asking you has become the default.',
+      conflict:'You want the business to grow, but growth right now means more of your time, not less.',
+      root:'There\u2019s no simple, shared understanding of what others are allowed to decide without checking first.',
+      leverage:'What decisions you could hand off safely, starting small.', thesis:'The business isn\u2019t limited by demand right now \u2014 it\u2019s limited by how much of you it needs.',
+      decision:'Hand off a small, clear category of decisions this month.', action:'Pick one small, repeated decision and tell whoever helps you: "from now on, you decide this."' },
+    transition:{current:'Every decision runs through you', constraint:'No one else has clear room to decide anything', required:'A few simple, trusted rules for what others can decide', future:'A business that keeps running well on the days you\u2019re not fully there'},
+    behavior:{current:'You make the call on almost everything', friction:'Others aren\u2019t sure what they\u2019re allowed to decide', inertia:'Asking you has always worked', required:'A trusted helper owns a small set of routine decisions', capability:'One clear, spoken rule about what they can decide alone', adoption:'They act on it without checking first, most of the time', accountability:'A quick weekly check-in', measure:'Fewer small questions coming to you each day'},
+    stakeholders:{ owner:{means:'A little more room to breathe and think ahead', understand:'Letting go of small decisions makes room for bigger ones', resist:'It can feel safer to just decide everything yourself', action:'Choose one decision to hand off this week'},
+      helper:{means:'Real trust to decide something without waiting on you', understand:'This is confidence in them, not you stepping back', resist:'Fear of getting it wrong without you there', action:'Make that one decision on their own for two weeks'},
+      customer:{means:'Faster answers, even when you\u2019re not around', understand:'Someone else can now help them just as well', resist:'Regulars used to dealing only with you may be unsure at first', action:'Introduce your helper as someone they can also go to'},
+      supplier:{means:'Not always needing to reach you directly', understand:'Simple, repeat orders can be handled without you every time', resist:'', action:'Let them know who else they can speak to'} },
+    decisionAction:{decision:'Hand off one clear category of decisions this month', why:'Growth currently adds to your workload instead of easing it', evidence:'What you shared about doing everything yourself', owner:'You', action:'Tell your helper: from now on, you decide this one thing', success:'Fewer everyday questions reach you directly'}
+  },
+  churn: {
+    keywords:['stop coming','stopped coming','don\u2019t come back','not coming back','losing customers','customers leave','churn','fewer customers','used to come','no longer come'],
+    followup:{ text:'When a regular customer stops coming, do you usually notice right away \u2014 or only much later?', why:'You mentioned customers quietly leaving \u2014 this checks how early you\u2019d actually notice it happening.',
+      replies:['Only much later, if at all','I notice, but I\u2019m not sure why they stopped',"I've never really tracked this"] },
+    clear:'New customers are still showing up.', unclear:'Why some customers quietly stop coming back.',
+    changing:'Customers appear to be leaving without any warning sign.', signal:'The business is gaining new customers about as fast as it\u2019s quietly losing old ones.',
+    flow:[{tag:'YOU SHARED',text:'New customers keep arriving'},{tag:'YOU SHARED',text:'Some customers quietly stop coming'},{tag:'LIKELY',text:'No early sign before a customer is gone for good'}],
+    pattern:'This usually means growth looks fine on the surface, while a similar number of customers are leaving quietly.',
+    diagnosis:{ what:'New customers keep coming in, but the business doesn\u2019t seem to be moving forward the way it should.',
+      why:'Existing customers are drifting away quietly, and there\u2019s no early sign before they\u2019re gone for good.',
+      conflict:'Effort is going into bringing people in, while just as many are slipping out unnoticed.',
+      root:'There\u2019s no simple way to notice a customer pulling away before they\u2019ve already left.',
+      leverage:'Catching a customer drifting away, early enough to still matter.', thesis:'This isn\u2019t a "not enough customers" problem \u2014 it\u2019s a "not noticing them leave" problem.',
+      decision:'Start noticing early, not after they\u2019re already gone.', action:'Pick one regular who hasn\u2019t come by in a while and simply ask them how things are going.' },
+    transition:{current:'Focused mainly on bringing new customers in', constraint:'No simple way to notice a customer quietly drifting away', required:'A small habit of checking in on regulars before they disappear', future:'Growth that holds, instead of quietly leaking out the back'},
+    behavior:{current:'No one checks in on a customer who\u2019s gone quiet', friction:'It\u2019s not anyone\u2019s clear job to notice', inertia:'It\u2019s always been this way', required:'Someone notices and reaches out when a regular goes quiet', capability:'A simple way to remember your regulars', adoption:'A quick, genuine check-in happens', accountability:'A regular moment to look back at who\u2019s gone quiet', measure:'Fewer regulars disappearing without ever being asked why'},
+    stakeholders:{ owner:{means:'A steadier, more dependable base of regulars', understand:'Keeping a customer is often easier than finding a new one', resist:'It can feel like one more thing to remember', action:'Start with just one regular who\u2019s gone quiet'},
+      helper:{means:'A simple, clear thing to watch for and act on', understand:'A small check-in can bring a regular straight back', resist:'', action:'Mention it warmly, not like a sales pitch'},
+      customer:{means:'Being noticed, rather than just another sale', understand:'The check-in is genuine care, not pressure to buy', resist:'May feel a little surprised to be asked', action:'Keep it warm and easy to brush off if they\u2019re just busy'},
+      supplier:{means:'', understand:'', resist:'', action:''} },
+    decisionAction:{decision:'Start noticing customers slipping away before they\u2019re gone', why:'New customers are arriving, but regulars are leaving quietly', evidence:'What you shared about customers who stop coming', owner:'You', action:'Reach out to one regular who hasn\u2019t come by in a while', success:'Regulars who go quiet are noticed before they\u2019re gone for good'}
+  },
+  stock: {
+    keywords:['stock','unsold','leftover','goes to waste','spoiled','spoil','extra stock','too much stock','wastage','expired','left over'],
+    followup:{ text:'What usually happens to what doesn\u2019t sell by the end of the day \u2014 does it keep, or does it go to waste?', why:'You mentioned stock going unsold or to waste \u2014 this checks whether it\u2019s a spoilage problem or a cash-tied-up problem.',
+      replies:['Some of it goes to waste or has to be sold cheap','It keeps, but it ties up money for longer than I\u2019d like',"I haven't really paid attention to this"] },
+    clear:'You\u2019re stocking enough to meet demand on your best days.', unclear:'How much is actually left over on an average day.',
+    changing:'Stock levels are being set by hope, not a clear read on demand.', signal:'Money is sitting in unsold stock instead of moving through the business.',
+    flow:[{tag:'YOU SHARED',text:'You stock for busy days'},{tag:'YOU SHARED',text:'Some of it goes unsold'},{tag:'LIKELY',text:'Cash is sitting in stock instead of your hands'}],
+    pattern:'This usually means stocking decisions are made for the best day, not the average one.',
+    diagnosis:{ what:'What you buy to sell doesn\u2019t always sell \u2014 some sits, spoils, or gets sold cheap just to move it.',
+      why:'Stocking decisions are based on hope for a good day, not a clear read on what usually sells.',
+      conflict:'You want to be ready for your busiest days, but that habit ties up money on ordinary ones.',
+      root:'There\u2019s no simple sense of how much usually sells on a normal day versus a busy one.',
+      leverage:'How closely what you stock matches what actually sells on a normal day.', thesis:'The business isn\u2019t short on demand \u2014 it\u2019s short on matching supply to an ordinary day.',
+      decision:'Stock closer to an ordinary day, not the best one, for now.', action:'For one week, note what\u2019s left over each evening \u2014 just a quick tally.' },
+    transition:{current:'Stocking based on hope for a good day', constraint:'No simple read on what an ordinary day actually needs', required:'A quick, regular habit of noting what sells and what\u2019s left', future:'Stock that matches demand closely enough that little goes to waste'},
+    behavior:{current:'Stock is bought on instinct, day to day', friction:'No simple habit for tracking what\u2019s left over', inertia:'It\u2019s always been done this way', required:'A quick daily tally of what didn\u2019t sell', capability:'Nothing more than a notebook and a minute at closing time', adoption:'The tally happens most days', accountability:'A quick look back at the week\u2019s tallies', measure:'Less unsold stock left over by the end of an average day'},
+    stakeholders:{ owner:{means:'Less money sitting in things that don\u2019t sell', understand:'Being ready for a good day shouldn\u2019t mean losing money on an ordinary one', resist:'It can feel safer to always over-stock', action:'Start the quick daily tally this week'},
+      helper:{means:'A simple, clear thing to note each evening', understand:'This helps everyone stock smarter', resist:'', action:'Note what\u2019s left over at closing time'},
+      customer:{means:'Fresher goods, more of the time', understand:'', resist:'', action:''},
+      supplier:{means:'Steadier orders from you over time', understand:'You\u2019re matching orders to what actually sells', resist:'', action:'Let them know if your regular order size changes'} },
+    decisionAction:{decision:'Stock closer to an ordinary day rather than the best one, for now', why:'Money is currently sitting in stock that doesn\u2019t sell in time', evidence:'What you shared about leftover or wasted stock', owner:'You', action:'Track what\u2019s left over each evening for one week', success:'Less unsold stock left over by the end of an average day'}
+  },
+  general: {
+    keywords:[],
+    followup:{ text:'If you had to name the one thing that worries you most right now, what would it be?', why:'What you shared gives a starting picture \u2014 this narrows down where to look next.',
+      replies:['Not having enough cash on hand','Not having enough time for everything','Not being sure the numbers add up'] },
+    clear:'The business is active and moving.', unclear:'Exactly where the pressure is really coming from.',
+    changing:'Things feel busier, but not necessarily clearer.', signal:'There\u2019s more happening than there is visibility into.',
+    flow:[{tag:'YOU SHARED',text:'The business is active'},{tag:'UNCLEAR',text:'Where the pressure is coming from'},{tag:'LIKELY',text:'Busy and clear aren\u2019t the same thing yet'}],
+    pattern:'Right now there\u2019s more happening in the business than there is clarity about it.',
+    diagnosis:{ what:'The business is active, but it\u2019s not yet clear where the real pressure is coming from.', why:'There isn\u2019t yet a simple way to see what\u2019s working and what\u2019s quietly costing you.',
+      conflict:'You\u2019re putting in the effort, but it\u2019s hard to tell where that effort is paying off.', root:'Day-to-day busyness is standing in for a clear view of the business.',
+      leverage:'The one thing you\u2019d most want a clear answer on, right now.', thesis:'Right now, the business needs clarity more than it needs a new plan.',
+      decision:'Pick one clear question to answer this week.', action:'Tell DLSMirror a bit more about a normal day \u2014 that\u2019s often where the answer is hiding.' },
+    transition:{current:'Busy, day-to-day way of running things', constraint:'Not enough clarity yet on where the pressure sits', required:'A little more detail on what a normal day and week look like', future:'A clearer, calmer sense of what\u2019s really going on'},
+    behavior:{current:'Decisions are made in the moment', friction:'There isn\u2019t a clear picture to decide from yet', inertia:'This has been enough to get by so far', required:'A short, honest look at a normal day or week', capability:'Just a few more details shared with DLSMirror', adoption:'You come back and share a bit more as things happen', accountability:'Check back in as the picture gets clearer', measure:'A clearer, simpler answer to what\u2019s really going on'},
+    stakeholders:{ owner:{means:'A clearer picture, one step at a time', understand:'Clarity usually comes before the right decision', resist:'It can feel slower than just deciding something', action:'Share a bit more detail with DLSMirror'},
+      helper:{means:'', understand:'', resist:'', action:''}, customer:{means:'', understand:'', resist:'', action:''}, supplier:{means:'', understand:'', resist:'', action:''} },
+    decisionAction:{decision:'Get clear on one thing before trying to fix everything', why:'There isn\u2019t yet enough shared detail to point to a specific cause', evidence:'What you\u2019ve shared so far', owner:'You', action:'Share a bit more about a normal day with DLSMirror', success:'One clear, specific answer instead of a general worry'}
+  }
+};
+function detectTheme(text){
+  const lower = (text||'').toLowerCase();
+  let best = 'general', bestScore = 0;
+  ['cash','overload','churn','stock'].forEach(k=>{
+    let score = 0;
+    THEMES[k].keywords.forEach(kw=>{ if(lower.includes(kw.toLowerCase())) score++; });
+    if(score>bestScore){ bestScore=score; best=k; }
+  });
+  return best;
+}
+
+/* ============================= REASONING GATEWAY (frontend never calls Anthropic) ============================= */
+/* All prompt construction, provider calls, and schema validation now live server-side
+   in /backend/reasoning/*. The frontend only ever calls its own backend. */
+async function callDLSReasoning(stage, payload){
+  let response;
+  try{
+    response = await fetch('/api/reason', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ stage, language: langName(), payload })
+    });
+  }catch(networkErr){
+    throw new Error('DLSMirror is reconnecting to its reasoning engine.');
+  }
+  let json;
+  try{ json = await response.json(); }
+  catch(parseErr){ throw new Error('DLSMirror is reconnecting to its reasoning engine.'); }
+  if(!response.ok || !json.ok){
+    throw new Error('DLSMirror is reconnecting to its reasoning engine.');
+  }
+  return json.data;
+}
+function transcript(){ return state.conversation.map(t=>(t.role==='owner'?'Owner: ':'DLSMirror: ')+t.text).join('\n'); }
+function compactEvidenceForPrompt(){ return state.reality.evidence.map(e=>({id:e.id, statement:e.normalizedMeaning||e.statement, layer:e.layer, evidenceStatus:e.evidenceStatus})); }
+function compactGapsForPrompt(){ return state.reality.knowledgeGaps.filter(g=>!g.resolved).map(g=>({question:g.question, missingInformation:g.missingInformation, importance:g.importance})); }
+function compactSignalsForPrompt(){ return state.reality.signals.map(s=>({id:s.id, signal:s.signal, severity:s.severity, relatedLayers:s.relatedLayers})); }
+
+/* ============================= LIVE ENGINE: DISCOVERY (app owns sufficiency + verification) ============================= */
+async function startOrContinueDiscovery(ownerText){
+  const answeredGapId = state.pendingGapId;
+  state.conversation.push({role:'owner', text: ownerText});
+  state.discoveryStep = 'loading';
+  render();
+  try{
+    const result = await callDLSReasoning('discover', {
+      conversationTranscript: transcript(),
+      evidenceOnFile: compactEvidenceForPrompt(),
+      openGaps: compactGapsForPrompt(),
+    });
+
+    // 1) resolve whatever gap the just-asked question targeted
+    if(answeredGapId){
+      const gap = state.reality.knowledgeGaps.find(g=>g.id===answeredGapId);
+      if(gap){
+        gap.resolved = true;
+        if(gap.verifiesEvidenceId){ verifyEvidence(gap.verifiesEvidenceId, {method:'owner_confirmation'}); }
+        if(gap.resolvesContradictionId){
+          const c = state.reality.contradictions.find(x=>x.id===gap.resolvesContradictionId);
+          if(c) c.resolved = true;
+        }
+      }
+    }
+
+    // 2) commit new evidence, tracked by local key for same-turn cross-referencing
+    const keyToEvidenceId = {};
+    (result.evidence||[]).slice(0,3).forEach(e=>{
+      if(!e || !e.normalizedMeaning || !e.layer) return;
+      const item = { id:genId('ev'), statement:e.originalStatement||e.normalizedMeaning, normalizedMeaning:e.normalizedMeaning,
+        source:'owner_conversation', layer:e.layer, evidenceStatus:e.evidenceStatus||'OWNER-PROVIDED', timestamp:Date.now(),
+        supportingEvidenceIds:[], contradictingEvidenceIds:[], relatedSignalIds:[], relatedRelationshipIds:[],
+        verification:{required:false, status:'not_required', question:'', method:''} };
+      item.confidence = evidenceConfidence(item, state.reality.evidence);
+      state.reality.evidence.push(item);
+      if(e.key) keyToEvidenceId[e.key] = item.id;
+      addGraphNode('evidence', item.id, item.normalizedMeaning, item.confidence);
+      if((item.evidenceStatus==='INFERRED' || item.evidenceStatus==='HYPOTHESIS') && e.verificationQuestion){
+        createVerificationGap(item, e.verificationQuestion);
+      }
+    });
+
+    // 3) commit signals, resolving supportingEvidenceKeys -> real ids (new keys or existing ids)
+    const validEvIds = knownEvidenceIds();
+    const hasContra = (result.contradictions||[]).length>0;
+    (result.signals||[]).slice(0,2).forEach(s=>{
+      if(!s || !s.signal) return;
+      const resolvedIds = (s.supportingEvidenceKeys||[]).map(k=>keyToEvidenceId[k]||k).filter(id=>validEvIds.includes(id));
+      const sig = { id:genId('sig'), signal:s.signal, type:s.type||'commercial', severity:s.severity||'medium', relatedLayers:s.relatedLayers||[],
+        supportingEvidenceIds:resolvedIds, status:'active', timestamp:Date.now() };
+      sig.confidence = signalConfidence(sig, hasContra);
+      state.reality.signals.push(sig);
+      addGraphNode('signal', sig.id, sig.signal, sig.confidence);
+      resolvedIds.forEach(eid=>addGraphEdge(eid, sig.id, 'SUPPORTS', 'evidence supports this signal', undefined, [eid]));
+    });
+
+    // 4) commit knowledge gaps (dedupe by question text)
+    (result.knowledge_gaps||[]).slice(0,2).forEach(g=>{
+      if(!g || !g.question) return;
+      if(!state.reality.knowledgeGaps.find(x=>x.question===g.question)){
+        state.reality.knowledgeGaps.push({ id:genId('gap'), question:g.question, missingInformation:g.missingInformation||'',
+          importance:g.importance||'medium', diagnosticImpact:g.diagnosticImpact||'medium', decisionImpact:g.decisionImpact||'medium',
+          relationshipImpact:g.relationshipImpact||'low', relatedLayer:g.relatedLayer||'commercial', timestamp:Date.now(), resolved:false });
+      }
+    });
+
+    // 5) commit contradictions + auto-create a resolution gap (app decides priority, not the model)
+    (result.contradictions||[]).forEach(c=>{
+      const contra = { id:genId('contra'), statementA:c.statementA, statementB:c.statementB, note:c.note, timestamp:Date.now(), resolved:false };
+      state.reality.contradictions.push(contra);
+      createContradictionGap(contra);
+      if(c.existingEvidenceId && validEvIds.includes(c.existingEvidenceId)){
+        addGraphEdge(c.existingEvidenceId, c.existingEvidenceId, 'CONTRADICTS', c.note, undefined, []);
+      }
+    });
+
+    // 6) app decides sufficiency \u2014 deterministically, no question-count cap
+    const assessment = evaluateDiscoverySufficiency();
+    if(assessment.sufficient){
+      state.discoveryStep = 'sufficient';
+      state.currentQuestion = null;
+      state.pendingGapId = null;
+    } else {
+      const nextGap = topOpenGap();
+      state.pendingGapId = nextGap ? nextGap.id : null;
+      state.currentQuestion = result.next_question;
+      state.conversation.push({role:'mirror', text: (result.next_question && result.next_question.text) || ''});
+      state.discoveryStep = 'question';
+    }
+    persistState();
+  }catch(e){
+    state.discoveryStep = 'error';
+  }
+  render();
+}
+
+function invalidateDownstream(){
+  state.live.understand = undefined; state.live.diagnose = undefined; state.live.transition = undefined;
+  state.live.behavior = undefined; state.live.stakeholder = undefined;
+  state.reality.intelligenceVersion = (state.reality.intelligenceVersion||1) + 1;
+  markGraphStale();
+}
+function archiveIfPresent(type, obj){
+  if(obj) state.reality.history.push({ type, version: state.reality.intelligenceVersion||1, data: obj, archivedAt: Date.now() });
+}
+
+async function loadStage(stageKey){
+  if(state.demoMode) return;
+  if(state.live[stageKey] !== undefined && state.live[stageKey] !== 'error') return;
+  state.live[stageKey] = 'loading';
+  render();
+  try{
+    if(stageKey==='understand'){
+      const result = await callDLSReasoning('understand', {
+        evidence: compactEvidenceForPrompt(),
+        signals: compactSignalsForPrompt(),
+      });
+      const validSigIds = state.reality.signals.map(s=>s.id);
+      const keyToRelId = {};
+      (result.relationships||[]).forEach(r=>{
+        if(!validSigIds.includes(r.signalAId) || !validSigIds.includes(r.signalBId)) return;
+        const validEvidenceIds = filterValidIds(r.supportingEvidenceIds, knownEvidenceIds());
+        const relId = genId('rel');
+        if(r.key) keyToRelId[r.key] = relId;
+        const rel = { id:relId, signalAId:r.signalAId, signalBId:r.signalBId, relationship:r.relationship,
+          type: ['CAUSES','CORRELATES_WITH','CONTRIBUTES_TO'].includes(r.type) ? r.type : 'CORRELATES_WITH',
+          supportingEvidenceIds: validEvidenceIds, status: validEvidenceIds.length ? 'supported' : 'hypothesis', timestamp:Date.now() };
+        rel.confidence = relationshipConfidence(rel);
+        state.reality.relationships.push(rel);
+        addGraphNode('relationship', rel.id, rel.relationship, rel.confidence);
+        addGraphEdge(r.signalAId, rel.id, 'CONTRIBUTES_TO', '', rel.confidence, []);
+        addGraphEdge(r.signalBId, rel.id, 'CONTRIBUTES_TO', '', rel.confidence, []);
+        validEvidenceIds.forEach(eid=>addGraphEdge(eid, rel.id, 'SUPPORTS', '', undefined, [eid]));
+      });
+      const patRelIds = ((result.pattern&&result.pattern.supportingRelationshipKeys)||[]).map(k=>keyToRelId[k]).filter(Boolean);
+      const patSigIds = filterValidIds((result.pattern&&result.pattern.supportingSignalIds), validSigIds);
+      const patEvidenceIds = Array.from(new Set(patRelIds.flatMap(rid=>{ const r=state.reality.relationships.find(x=>x.id===rid); return r?r.supportingEvidenceIds:[]; })));
+      const pat = { id:genId('pat'), statement:(result.pattern&&result.pattern.statement)||'', supportingRelationshipIds:patRelIds,
+        supportingSignalIds:patSigIds, supportingEvidenceIds:patEvidenceIds, status: patRelIds.length?'supported':'hypothesis', timestamp:Date.now() };
+      pat.confidence = patternConfidence(patRelIds);
+      state.reality.patterns.push(pat);
+      addGraphNode('pattern', pat.id, pat.statement, pat.confidence);
+      patRelIds.forEach(rid=>addGraphEdge(rid, pat.id, 'DERIVED_FROM', '', pat.confidence, []));
+      patSigIds.forEach(sid=>addGraphEdge(sid, pat.id, 'CONTRIBUTES_TO', '', pat.confidence, []));
+
+    } else if(stageKey==='diagnose'){
+      const lastPattern = state.reality.patterns[state.reality.patterns.length-1];
+      const result = await callDLSReasoning('diagnose', {
+        evidence: compactEvidenceForPrompt(),
+        relationships: state.reality.relationships,
+        pattern: lastPattern || null,
+      });
+      archiveIfPresent('diagnosis', state.reality.diagnosis);
+      archiveIfPresent('thesis', state.reality.thesis);
+      const diagId = genId('diag');
+      state.reality.diagnosis = { id:diagId, firstPrinciple: result.firstPrinciple, invisibleBottleneck: result.invisibleBottleneck, timestamp:Date.now() };
+      addGraphNode('diagnosis', diagId, result.invisibleBottleneck.rootCause||'diagnosis', 0.5);
+      if(lastPattern) addGraphEdge(lastPattern.id, diagId, 'DERIVED_FROM', '', undefined, []);
+      const evidenceIds = lastPattern ? lastPattern.supportingEvidenceIds : knownEvidenceIds();
+      const relIds = lastPattern ? lastPattern.supportingRelationshipIds : [];
+      const contraCount = state.reality.contradictions.filter(c=>!c.resolved).length;
+      const thesisId = genId('thesis');
+      const thConf = thesisConfidenceFrom(evidenceIds, contraCount);
+      state.reality.thesis = { id:thesisId, thesis: result.thesis.thesis, supportingEvidenceIds: evidenceIds, supportingRelationshipIds: relIds,
+        supportingPatternIds: lastPattern ? [lastPattern.id] : [], contradictingEvidence: result.thesis.contradictingEvidence,
+        falsificationCondition: result.thesis.falsificationCondition, confidence: thConf, status: thConf>=0.5?'supported':'tentative', timestamp:Date.now() };
+      addGraphNode('thesis', thesisId, result.thesis.thesis, thConf);
+      addGraphEdge(diagId, thesisId, 'DERIVED_FROM', '', thConf, []);
+      if(lastPattern) addGraphEdge(lastPattern.id, thesisId, 'SUPPORTS', '', thConf, []);
+
+    } else if(stageKey==='transition'){
+      const result = await callDLSReasoning('transition', {
+        diagnosis: state.reality.diagnosis,
+        thesis: state.reality.thesis,
+      });
+      archiveIfPresent('transition', state.reality.transition);
+      archiveIfPresent('operatingSystem', state.reality.operatingSystem);
+      state.reality.transition = { current:result.current, constraint:result.constraint, required:result.required, future:result.future, timestamp:Date.now() };
+      state.reality.operatingSystem = result.operatingSystem;
+
+    } else if(stageKey==='behavior'){
+      const result = await callDLSReasoning('behavior', {
+        diagnosis: state.reality.diagnosis,
+        transition: state.reality.transition,
+      });
+      archiveIfPresent('behavior', state.reality.behavior);
+      state.reality.behavior = result;
+
+    } else if(stageKey==='stakeholder'){
+      const result = await callDLSReasoning('stakeholder', {
+        diagnosis: state.reality.diagnosis,
+        transition: state.reality.transition,
+        behavior: state.reality.behavior,
+      });
+      archiveIfPresent('stakeholders', state.reality.stakeholders);
+      state.reality.stakeholders = result.stakeholders;
+      const evidenceIds = state.reality.thesis ? state.reality.thesis.supportingEvidenceIds : knownEvidenceIds();
+      const decId = genId('dec');
+      state.reality.decisions.push({ id:decId, evidenceIds, ...result.decision, timestamp:Date.now() });
+      addGraphNode('decision', decId, result.decision.decision, 0.5);
+      if(state.reality.thesis) addGraphEdge(state.reality.thesis.id, decId, 'LEADS_TO', '', undefined, []);
+    }
+    state.live[stageKey] = true;
+    persistState();
+  }catch(e){
+    state.live[stageKey] = 'error';
+  }
+  render();
+}
+
+async function recordOutcome(observedText){
+  const decision = state.reality.decisions[state.reality.decisions.length-1];
+  state.outcomeStep = 'loading';
+  render();
+  try{
+    const result = await callDLSReasoning('learning', {
+      decision: decision,
+      observedText: observedText,
+    });
+    const outId = genId('out');
+    state.reality.outcomes.push({ id:outId, decisionId: decision?decision.id:null, expectedOutcome: decision?decision.expectedOutcome:'', observedOutcome: result.observedOutcome, timestamp:Date.now() });
+    if(decision) addGraphEdge(decision.id, outId, 'LEADS_TO', '', undefined, []);
+    state.reality.learnings.push({ id:genId('learn'), difference:result.difference, possibleExplanation:result.possibleExplanation, evidenceRequired:result.evidenceRequired, timestamp:Date.now() });
+    if(result.newSignal && result.newSignal.signal){
+      const sig = { id:genId('sig'), signal:result.newSignal.signal, type:result.newSignal.type||'commercial', severity:result.newSignal.severity||'medium', relatedLayers:result.newSignal.relatedLayers||[], supportingEvidenceIds:[], status:'active', timestamp:Date.now() };
+      sig.confidence = signalConfidence(sig, false);
+      state.reality.signals.push(sig);
+      addGraphNode('signal', sig.id, sig.signal, sig.confidence);
+      addGraphEdge(outId, sig.id, 'LEADS_TO', '', undefined, []);
+    }
+    state.outcomeStep = 'done';
+    state.lastLearning = result;
+    state.loopSignal = true;
+    state.stage = 'discover';
+    state.discoveryStep = 'input';
+    invalidateDownstream();
+    state.pendingGapId = null;
+    persistState();
+  }catch(e){
+    state.outcomeStep = 'error';
+  }
+  render();
+}
+
+/* ============================= PERSISTENCE (real server-side Business Mirror) ============================= */
+/* Earlier prototypes used window.storage, which only exists inside a Claude.ai
+   artifact sandbox - it does not exist in a real browser. Now that DLSMirror
+   has a real backend, persistence goes through /api/mirror instead: a small
+   businessId/mirrorId reference lives in the browser's own localStorage, and
+   the actual Business Reality snapshot lives on the server, keyed by that id.
+   This is what makes "leave and return, even from a different browser" real. */
+const LOCAL_BIZ_KEY = 'dlsmirror_business_ref';
+function getLocalBusinessRef(){
+  try{ const raw = localStorage.getItem(LOCAL_BIZ_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+function setLocalBusinessRef(ref){
+  try{ localStorage.setItem(LOCAL_BIZ_KEY, JSON.stringify(ref)); }catch(e){ /* localStorage unavailable; session-only */ }
+}
+async function ensureBusinessMirror(){
+  let ref = getLocalBusinessRef();
+  if(!ref){
+    try{
+      const res = await fetch('/api/mirror/init', { method:'POST' });
+      const json = await res.json();
+      if(json.ok){ ref = { businessId: json.businessId, mirrorId: json.mirrorId }; setLocalBusinessRef(ref); }
+    }catch(e){ /* backend unreachable - continue session-only, without server persistence */ }
+  }
+  state.businessId = ref ? ref.businessId : null;
+  state.mirrorId = ref ? ref.mirrorId : null;
+}
+function buildSnapshot(){
+  return {
+    demoMode: state.demoMode, lang: state.lang, stage: state.stage, visited: state.visited,
+    conversation: state.conversation, discoveryStep: (state.discoveryStep==='loading'?'input':state.discoveryStep),
+    currentQuestion: state.currentQuestion, pendingGapId: state.pendingGapId,
+    theme: state.theme, userText: state.userText, reality: state.reality,
+    live: {
+      understand: state.live.understand==='error' ? undefined : state.live.understand,
+      diagnose: state.live.diagnose==='error' ? undefined : state.live.diagnose,
+      transition: state.live.transition==='error' ? undefined : state.live.transition,
+      behavior: state.live.behavior==='error' ? undefined : state.live.behavior,
+      stakeholder: state.live.stakeholder==='error' ? undefined : state.live.stakeholder,
+    }
+  };
+}
+async function persistState(){
+  if(!state.businessId) return; // Demo mode, or backend unreachable at startup
+  try{
+    await fetch('/api/mirror/'+state.businessId, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ state: buildSnapshot() })
+    });
+  }catch(e){ /* server unreachable this turn; in-memory state is still correct for this session */ }
+}
+async function restoreState(){
+  await ensureBusinessMirror();
+  if(!state.businessId) return;
+  try{
+    const res = await fetch('/api/mirror/'+state.businessId);
+    const json = await res.json();
+    if(json.ok && json.state){
+      Object.assign(state, json.state);
+      if(!state.reality) state.reality = emptyReality();
+    }
+  }catch(e){ /* nothing recoverable yet, or backend unreachable */ }
+}
+async function clearPersisted(){
+  try{ localStorage.removeItem(LOCAL_BIZ_KEY); }catch(e){}
+  await ensureBusinessMirror(); // immediately provisions a fresh Business Mirror
+}
+
+/* ============================= STATE ============================= */
+function emptyReality(){
+  return { evidence:[], signals:[], relationships:[], patterns:[], knowledgeGaps:[], contradictions:[],
+    diagnosis:null, thesis:null, transition:null, operatingSystem:null, behavior:null,
+    stakeholders:null, decisions:[], outcomes:[], learnings:[],
+    discoveryAssessment:null, intelligenceGraph:{nodes:[], edges:[]}, intelligenceVersion:1, history:[] };
+}
+let state = {
+  demoMode:false, stage:'discover', lang:'en',
+  discoveryStep:'input', userText:'', theme:null, replyChoice:null,
+  conversation:[], currentQuestion:null, pendingGapId:null,
+  reality: emptyReality(),
+  live:{ understand:undefined, diagnose:undefined, transition:undefined, behavior:undefined, stakeholder:undefined },
+  stakeholder:'owner', openLayers:{}, loopSignal:false, leftOpen:false, visited:{discover:true},
+  outcomeStep:'idle', lastLearning:null, debugOpen:false,
+  businessId:null, mirrorId:null,
+};
+
+function stageData(key){
+  if(state.demoMode){
+    const t = THEMES[state.theme||'general'];
+    if(key==='understand') return {status:'ready', data:{flow:t.flow, pattern:t.pattern}};
+    if(key==='diagnose') return {status:'ready', data:t.diagnosis};
+    if(key==='transition') return {status:'ready', data:t.transition};
+    if(key==='behavior') return {status:'ready', data:t.behavior};
+    if(key==='stakeholder') return {status:'ready', data:{stakeholders:t.stakeholders, decisionAction:t.decisionAction}};
+  }
+  const v = state.live[key];
+  if(v===undefined) return {status:'idle'};
+  if(v==='loading') return {status:'loading'};
+  if(v==='error') return {status:'error'};
+  if(key==='understand') return {status:'ready', data:{relationships: state.reality.relationships, pattern: state.reality.patterns[state.reality.patterns.length-1]}};
+  if(key==='diagnose') return {status:'ready', data:{firstPrinciple: state.reality.diagnosis.firstPrinciple, invisibleBottleneck: state.reality.diagnosis.invisibleBottleneck, thesis: state.reality.thesis}};
+  if(key==='transition') return {status:'ready', data:{transition: state.reality.transition, operatingSystem: state.reality.operatingSystem}};
+  if(key==='behavior') return {status:'ready', data: state.reality.behavior};
+  if(key==='stakeholder') return {status:'ready', data:{stakeholders: state.reality.stakeholders, decision: state.reality.decisions[state.reality.decisions.length-1]}};
+}
+
+/* ============================= DERIVED VIEWS ============================= */
+function deriveLayerCards(){
+  const byLayer = {};
+  state.reality.evidence.forEach(e=>{
+    if(!byLayer[e.layer]) byLayer[e.layer] = {known:[], unclear:[], confSum:0, confCount:0};
+    byLayer[e.layer].confSum += e.confidence; byLayer[e.layer].confCount++;
+    if(KNOWN_STATUSES.includes(e.evidenceStatus)) byLayer[e.layer].known.push(e.normalizedMeaning||e.statement);
+    else byLayer[e.layer].unclear.push(e.normalizedMeaning||e.statement);
+  });
+  state.reality.knowledgeGaps.filter(g=>!g.resolved).forEach(g=>{
+    if(!byLayer[g.relatedLayer]) byLayer[g.relatedLayer] = {known:[], unclear:[], confSum:0, confCount:0};
+    byLayer[g.relatedLayer].unclear.push(g.missingInformation);
+  });
+  return LAYER_ORDER.filter(k=>byLayer[k]).map(k=>({
+    id:k, label:LAYER_PLAIN_LABEL[k],
+    known: byLayer[k].known.slice(0,2).join(' \u2014 ') || '\u2014',
+    unclear: byLayer[k].unclear.slice(0,2).join(' \u2014 ') || '\u2014',
+    confidence: byLayer[k].confCount ? pct(byLayer[k].confSum/byLayer[k].confCount) : '\u2014',
+  }));
+}
+
+/* ============================= RENDER ============================= */
+function render(){
+  const root = document.getElementById('app');
+  root.innerHTML = `
+    ${renderTopbar()}
+    <div class="shell">
+      ${renderLeftRail()}
+      <div class="center"><div class="center-inner">${renderCenter()}</div></div>
+      ${renderRightRail()}
+    </div>
+  `;
+  renderDebug();
+  wireEvents();
+}
+
+function renderTopbar(){
+  const opts = LANGS.map(l=>`<option value="${l.code}" ${state.lang===l.code?'selected':''}>${l.name}</option>`).join('');
+  return `
+  <div class="topbar">
+    <div class="brand"><span class="brand-mark">DLSMirror</span><span class="brand-tag">Decision Intelligence Operating System</span></div>
+    <div class="topbar-right">
+      <div class="mode-toggle">
+        <button class="mode-btn ${state.demoMode?'':'active'}" id="modeLive">Live</button>
+        <button class="mode-btn ${state.demoMode?'active':''}" id="modeDemo">Demo</button>
+      </div>
+      <button class="link-btn" id="debugBtn" style="font-weight:500;">Debug</button>
+      <button class="link-btn" id="startOverBtn" style="font-weight:500;">Start over</button>
+      <select class="quiet" id="langSelect">${opts}</select>
+      <button class="rail-toggle" id="railToggle">Menu</button>
+    </div>
+  </div>`;
+}
+
+function renderLeftRail(){
+  const items = STAGE_DEFS.map((s,i)=>{
+    const isCurrent = state.stage===s.id;
+    const visited = state.visited[s.id];
+    const localLabel = state.lang==='en' ? '' : `<div class="stage-label-local">${s.local[state.lang]}</div>`;
+    const flag = (s.id==='discover' && state.loopSignal) ? '<span class="stage-signal-flag" title="New signal"></span>' : '';
+    return `<button class="stagebtn ${isCurrent?'current':''} ${visited?'visited':''}" data-stage="${s.id}">
+      <span class="dotcol"><span class="stage-dot"></span>${i<STAGE_DEFS.length-1?'<span class="stage-thread"></span>':''}</span>
+      <span><div class="stage-label-en">${s.en}</div>${localLabel}</span>${flag}
+    </button>`;
+  }).join('');
+  return `<div class="leftrail ${state.leftOpen?'open':''}" id="leftRail">${items}
+    <div class="leftrail-foot"><button class="about-link" id="aboutBtn">About this prototype</button></div>
+  </div>`;
+}
+
+function renderRightRail(){
+  if(state.demoMode){
+    if(!state.theme){ return `<div class="rightrail"><div class="rr-head"><span class="rr-title">WHAT DLSMIRROR UNDERSTANDS SO FAR</span></div><p style="font-size:13px;color:var(--stone);">Nothing yet. Tell DLSMirror what\u2019s happening, and this will fill in as you go.</p></div>`; }
+    const t = THEMES[state.theme];
+    return `<div class="rightrail">
+      <div class="rr-head"><span class="rr-title">WHAT DLSMIRROR UNDERSTANDS SO FAR</span></div>
+      <div class="layer-card open" style="cursor:default;"><div class="layer-body" style="display:block;">
+        <div class="layer-row"><b>What\u2019s clear</b><br>${t.clear}</div>
+        <div class="layer-row"><b>What\u2019s still unclear</b><br>${t.unclear}</div>
+        <div class="layer-row"><b>What\u2019s changing</b><br>${t.changing}</div>
+        <div class="layer-row"><b>The signal that matters</b><br>${t.signal}</div>
+      </div></div>
+      <p style="font-size:11.5px;color:var(--stone-faint);margin-top:8px;">Demo mode \u2014 illustrative content, not live.</p>
+    </div>`;
+  }
+  const cards = deriveLayerCards();
+  if(cards.length===0){
+    return `<div class="rightrail"><div class="rr-head"><span class="rr-title">WHAT DLSMIRROR UNDERSTANDS SO FAR</span></div><p style="font-size:13px;color:var(--stone);">Nothing yet. Tell DLSMirror what\u2019s happening, and this will fill in as you go.</p></div>`;
+  }
+  const layerHtml = cards.map(c=>{
+    const open = state.openLayers[c.id];
+    return `<div class="layer-card ${open?'open':''}" data-layer="${c.id}">
+      <div class="layer-head"><span class="layer-name">${c.label}</span><span class="badge-conf">${c.confidence}</span></div>
+      <div class="layer-body">
+        <div class="layer-row"><b>Known</b><br>${c.known}</div>
+        <div class="layer-row"><b>Unclear</b><br>${c.unclear}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const activeSignals = state.reality.signals.filter(s=>s.status==='active').slice(-4);
+  const signalsHtml = activeSignals.length ? `<div class="evidence-legend"><div class="rr-title" style="margin-bottom:8px;">ACTIVE SIGNALS</div>` +
+    activeSignals.map(s=>`<div class="ev-item"><span class="ev-swatch" style="background:${s.severity==='high'?'var(--amber)':'var(--accent-line)'}"></span>${s.signal} <span style="color:var(--stone-faint);">(${signalStrength(s)}, ${pct(s.confidence)})</span></div>`).join('') + `</div>` : '';
+  return `<div class="rightrail">
+    <div class="rr-head"><span class="rr-title">WHAT DLSMIRROR UNDERSTANDS SO FAR</span></div>
+    ${layerHtml}
+    ${signalsHtml}
+    <p style="font-size:11.5px;color:var(--stone-faint);margin-top:8px;">Based on evidence you\u2019ve shared \u2014 not verified data. Confidence is computed from how much and how independent that evidence is.</p>
+  </div>`;
+}
+
+function renderCenter(){
+  switch(state.stage){
+    case 'discover': return renderDiscover();
+    case 'understand': return renderUnderstand();
+    case 'diagnose': return renderDiagnose();
+    case 'transition': return renderTransition();
+    case 'behavior': return renderBehavior();
+    case 'stakeholder': return renderStakeholder();
+    default: return '';
+  }
+}
+function stageHeader(title, sub){ return `<div class="eyebrow">DLSMirror</div><h1 class="stage-title">${title}</h1><p class="stage-sub">${sub}</p>`; }
+function escapeHtml(str){ const d = document.createElement('div'); d.innerText = str || ''; return d.innerHTML; }
+function loadingBlock(text){ return `<div class="loading-line">${text}</div>`; }
+function errorBlock(stageKey){ return `<div class="error-block"><span>DLSMirror is reconnecting to its reasoning engine.</span><button class="btn secondary" data-retry="${stageKey}">Try again</button></div>`; }
+
+function renderDiscover(){
+  let html = stageHeader('Discover', 'Tell DLSMirror what\u2019s happening, in your own words. No forms, no business terms needed.');
+  html += `<div class="prompt-line">${PROMPT_LOCAL[state.lang]}</div>`;
+  html += state.demoMode ? renderDiscoverDemo() : renderDiscoverLive();
+  return html;
+}
+
+function renderDiscoverDemo(){
+  let html = '';
+  if(state.discoveryStep==='input' || !state.theme){
+    const exChips = EXAMPLES.map((ex,i)=>`<button class="chip" data-example="${i}">${ex.slice(0,46)}\u2026</button>`).join('');
+    html += `<textarea class="input-box" id="seedInput" placeholder="e.g. Sales are good but I never seem to have enough cash by the end of the day...">${state.userText||''}</textarea>
+      <div class="input-actions"><span style="font-size:12px;color:var(--stone);">Not sure what to write?</span><button class="btn" id="sendSeedDemo">Send</button></div>
+      <div class="quick-replies" style="margin-top:14px;">${exChips}</div>`;
+  } else {
+    const t = THEMES[state.theme];
+    html += `<div class="convo"><div class="turn-owner"><span class="who">YOU</span>${escapeHtml(state.userText)}</div>
+      <div class="turn-mirror"><span class="who">DLSMIRROR</span><div class="q">${t.followup.text}</div><div class="why-toggle" data-why="why1">Why I\u2019m asking</div><div class="why-body" id="why1">${t.followup.why}</div>`;
+    if(state.discoveryStep==='question'){
+      html += `<div class="quick-replies">` + t.followup.replies.map((r,i)=>`<button class="chip" data-demoidx="${i}">${r}</button>`).join('') + `</div>`;
+    }
+    html += `</div>`;
+    if(state.discoveryStep==='sufficient'){
+      html += `<div class="turn-owner"><span class="who">YOU</span>${escapeHtml(state.replyChoice)}</div>
+        <div class="turn-mirror"><span class="who">DLSMIRROR</span><div class="q">That\u2019s enough to work with. Here\u2019s what stands out, and what it likely means.</div></div>`;
+    }
+    html += `</div>`;
+    if(state.discoveryStep==='sufficient'){ html += `<div class="nudge"><span>Ready to see how it connects.</span><button class="btn" data-goto="understand">Continue to Understand</button></div>`; }
+  }
+  return html;
+}
+
+function renderDiscoverLive(){
+  let html = '';
+  if(state.conversation.length===0){
+    const exChips = EXAMPLES.map((ex,i)=>`<button class="chip" data-example="${i}">${ex.slice(0,46)}\u2026</button>`).join('');
+    html += `<textarea class="input-box" id="seedInput" placeholder="e.g. Sales are good but I never seem to have enough cash by the end of the day...">${state.userText||''}</textarea>
+      <div class="input-actions"><span style="font-size:12px;color:var(--stone);">Not sure what to write?</span><button class="btn" id="sendSeedLive">Send</button></div>
+      <div class="quick-replies" style="margin-top:14px;">${exChips}</div>`;
+    if(state.loopSignal){
+      const learnNote = state.lastLearning ? `<br><span style="font-size:12px;">Last time: ${escapeHtml(state.lastLearning.difference||'')}</span>` : '';
+      html += `<div class="loop-banner show">New information changes our understanding. Discovery has reopened to take in what\u2019s new.${learnNote}</div>`;
+    }
+    return html;
+  }
+  html += `<div class="convo">`;
+  state.conversation.forEach((turn, idx)=>{
+    const isLastPendingQuestion = (idx===state.conversation.length-1 && turn.role==='mirror' && state.discoveryStep==='question');
+    if(isLastPendingQuestion) return;
+    if(turn.role==='owner') html += `<div class="turn-owner"><span class="who">YOU</span>${escapeHtml(turn.text)}</div>`;
+    else html += `<div class="turn-mirror"><span class="who">DLSMIRROR</span><div class="q">${escapeHtml(turn.text)}</div></div>`;
+  });
+  html += `</div>`;
+
+  const openContradiction = state.reality.contradictions.find(c=>!c.resolved);
+  if(openContradiction && state.discoveryStep==='question'){
+    html += `<div class="contradiction-banner">Something doesn\u2019t quite add up: ${escapeHtml(openContradiction.note)}</div>`;
+  }
+
+  if(state.discoveryStep==='loading'){ html += loadingBlock(LOADING_TEXT.discovery); }
+  else if(state.discoveryStep==='error'){ html += `<div class="error-block"><span>DLSMirror is reconnecting to its reasoning engine.</span><button class="btn secondary" id="retryDiscovery">Try again</button></div>`; }
+  else if(state.discoveryStep==='question' && state.currentQuestion){
+    const q = state.currentQuestion;
+    const reason = state.reality.discoveryAssessment ? state.reality.discoveryAssessment.reason : '';
+    html += `<p style="font-size:12.5px;color:var(--stone);margin:-6px 0 12px;">${escapeHtml(reason)}</p>`;
+    html += `<div class="turn-mirror">
+      <span class="who">DLSMIRROR</span>
+      <div class="q">${escapeHtml(q.text)}</div>
+      <div class="why-toggle" data-why="whyLive">Why I\u2019m asking</div>
+      <div class="why-body" id="whyLive">${escapeHtml(q.why||'')}</div>
+      <div class="quick-replies">${(q.replies||[]).map((r,i)=>`<button class="chip" data-livereply="${i}">${escapeHtml(r)}</button>`).join('')}</div>
+      <div class="free-reply"><label>Or tell DLSMirror in your own words:</label>
+        <div class="free-reply-row"><textarea class="input-box" id="freeReplyInput" style="min-height:44px;"></textarea><button class="btn" id="sendFreeReply">Send</button></div>
+      </div></div>`;
+  } else if(state.discoveryStep==='sufficient'){
+    html += `<div class="nudge"><span>${escapeHtml((state.reality.discoveryAssessment&&state.reality.discoveryAssessment.reason)||'Enough is understood to see how it connects.')}</span><button class="btn" data-goto="understand">Continue to Understand</button></div>`;
+  }
+  return html;
+}
+
+function renderUnderstand(){
+  let html = stageHeader('Understand', 'DLSMirror connects what you\u2019ve shared into a clearer read \u2014 not a summary, but how things relate.');
+  const s = stageData('understand');
+  if(s.status==='loading' || s.status==='idle'){ return html + loadingBlock(LOADING_TEXT.understand); }
+  if(s.status==='error'){ return html + errorBlock('understand'); }
+  const d = s.data;
+  if(state.demoMode){
+    html += `<div class="flow">` + d.flow.map((f,i)=>`<div class="flow-step"><div class="flow-node"><span class="tag">${f.tag}</span>${f.text}</div></div>${i<d.flow.length-1?'<div class="flow-connector"></div>':''}`).join('') + `</div>`;
+    html += `<div class="callout">A PATTERN IS TAKING SHAPE</div><div class="flow-result">${d.pattern}</div>`;
+  } else {
+    html += (d.relationships||[]).map(r=>`<div class="section-block"><div class="section-label">RELATIONSHIP <span style="font-weight:400;color:var(--stone);">(${r.status}, ${pct(r.confidence)})</span></div><div class="section-text">${escapeHtml(r.relationship)}</div></div>`).join('');
+    html += `<div class="callout">A PATTERN IS TAKING SHAPE</div><div class="flow-result">${escapeHtml((d.pattern&&d.pattern.statement)||'')}</div>`;
+  }
+  html += `<div class="nudge" style="margin-top:36px;"><span>Worth looking at why this is happening.</span><button class="btn" data-goto="diagnose">Continue to Diagnose</button></div>`;
+  return html;
+}
+
+function renderDiagnose(){
+  let html = stageHeader('Diagnose', 'Why this is really happening \u2014 and where the system is actually breaking.');
+  const s = stageData('diagnose');
+  if(s.status==='loading' || s.status==='idle'){ return html + loadingBlock(LOADING_TEXT.diagnose); }
+  if(s.status==='error'){ return html + errorBlock('diagnose'); }
+  const d = s.data;
+  if(state.demoMode){
+    const rows = [['WHAT\u2019S HAPPENING', d.what], ['WHY IT MATTERS', d.why], ['THE HIDDEN TENSION', d.conflict], ['THE REAL CAUSE', d.root], ['WHAT TO FIX FIRST', d.leverage]];
+    rows.forEach(([l,t])=>{ html += `<div class="section-block"><div class="section-label">${l}</div><div class="section-text">${t}</div></div>`; });
+    html += `<div class="section-block"><div class="section-label">IN ONE LINE</div><div class="thesis">\u201c${d.thesis}\u201d</div></div>`;
+    html += `<div class="section-block"><div class="section-label">DECISION TO MAKE</div><div class="section-text">${d.decision}</div></div>`;
+    html += `<div class="section-block"><div class="section-label">YOUR NEXT STEP</div><div class="section-text">${d.action}</div></div>`;
+  } else {
+    const fp = d.firstPrinciple||{}, ib = d.invisibleBottleneck||{}, th = d.thesis||{};
+    html += `<div class="section-block"><div class="section-label">WHY IT\u2019S HAPPENING</div><div class="section-text">${escapeHtml(fp.underlyingReality||'')}</div></div>`;
+    html += `<div class="section-block"><div class="section-label">WHAT THAT MEANS COMMERCIALLY</div><div class="section-text">${escapeHtml(fp.commercialImplication||'')}</div></div>`;
+    html += `<div class="section-block"><div class="section-label">WHERE THE SYSTEM IS BREAKING</div><div class="section-text">${escapeHtml(ib.invisibleConflict||'')}</div></div>`;
+    html += `<div class="section-block"><div class="section-label">THE REAL CAUSE</div><div class="section-text">${escapeHtml(ib.rootCause||'')}</div></div>`;
+    html += `<div class="section-block"><div class="section-label">WHAT TO FIX FIRST</div><div class="section-text">${escapeHtml(ib.leverageVariable||'')}</div></div>`;
+    html += `<div class="section-block"><div class="section-label">A SMALL WAY TO TEST IT</div><div class="section-text">${escapeHtml(ib.pilot||'')}</div></div>`;
+    const trace = th.id ? traceBack(th.id, 6) : [];
+    const byType = {};
+    trace.forEach(n=>{ (byType[n.type] = byType[n.type]||[]).push(n); });
+    const order = ['pattern','relationship','signal','evidence'];
+    const traceHtml = order.filter(t=>byType[t]).map(t=>`<div style="margin-bottom:6px;"><b>${t}</b>: ${byType[t].map(n=>escapeHtml(n.label)).join('; ')}</div>`).join('');
+    html += `<div class="section-block">
+      <div class="section-label">IN ONE LINE <span style="font-weight:400;color:var(--stone);">(${th.status||'tentative'}, ${pct(th.confidence)} confidence)</span></div>
+      <div class="thesis">\u201c${escapeHtml(th.thesis||'')}\u201d</div>
+      <div class="evidence-trace" data-trace="trace1">Why DLSMirror thinks this</div>
+      <div class="trace-body" id="trace1">
+        ${traceHtml || '<div>Not enough of a trace has formed yet.</div>'}
+        <div style="margin-top:6px;"><b>Against:</b> ${escapeHtml(th.contradictingEvidence||'\u2014')}</div>
+        <div><b>Would prove this wrong:</b> ${escapeHtml(th.falsificationCondition||'')}</div>
+      </div>
+    </div>`;
+  }
+  html += `<div class="nudge"><span>This points to what needs to change.</span><button class="btn" data-goto="transition">Continue to Transition</button></div>`;
+  return html;
+}
+
+function renderTransition(){
+  let html = stageHeader('Transition', 'What the business needs to become to fix this properly, not just patch the symptom.');
+  const s = stageData('transition');
+  if(s.status==='loading' || s.status==='idle'){ return html + loadingBlock(LOADING_TEXT.transition); }
+  if(s.status==='error'){ return html + errorBlock('transition'); }
+  const tr = state.demoMode ? s.data : s.data.transition;
+  const steps = [['RIGHT NOW', tr.current], ['WHAT\u2019S HOLDING IT BACK', tr.constraint], ['WHAT NEEDS TO CHANGE', tr.required], ['WHERE THIS LEADS', tr.future]];
+  html += `<div class="flow">` + steps.map(([tag,text],i)=>`<div class="flow-step"><div class="flow-node"><span class="tag">${tag}</span>${escapeHtml(text||'')}</div></div>${i<steps.length-1?'<div class="flow-connector"></div>':''}`).join('') + `</div>`;
+  if(!state.demoMode && s.data.operatingSystem){
+    const os = s.data.operatingSystem;
+    html += `<div class="decision-card" style="margin-top:24px;">
+      <div class="dc-label">THE OPERATING MECHANISM</div><div class="dc-value">${escapeHtml(os.mechanism||'')}</div>
+      <div class="dc-grid">
+        <div><div class="dc-label">OWNS IT</div><div class="dc-value">${escapeHtml(os.owner||'')}</div></div>
+        <div><div class="dc-label">CADENCE</div><div class="dc-value">${escapeHtml(os.cadence||'')}</div></div>
+        <div><div class="dc-label">METRIC</div><div class="dc-value">${escapeHtml(os.metric||'')}</div></div>
+        <div><div class="dc-label">IF IT SLIPS</div><div class="dc-value">${escapeHtml(os.escalation||'')}</div></div>
+      </div></div>`;
+  }
+  html += `<div class="nudge"><span>This holds only if a habit changes with it.</span><button class="btn" data-goto="behavior">Continue to Enable Change</button></div>`;
+  return html;
+}
+
+function renderBehavior(){
+  let html = stageHeader('Enable Change', 'What actually needs to work differently day to day, and how that sticks.');
+  const s = stageData('behavior');
+  if(s.status==='loading' || s.status==='idle'){ return html + loadingBlock(LOADING_TEXT.behavior); }
+  if(s.status==='error'){ return html + errorBlock('behavior'); }
+  const bh = s.data;
+  const rows = [['HOW IT WORKS NOW', bh.current], ['WHAT\u2019S IN THE WAY', bh.friction], ['WHY IT HASN\u2019T CHANGED YET', bh.inertia]];
+  if(!state.demoMode){ rows.push(['RISK OF SLIPPING BACK', bh.relapseRisk], ['THE SMALLEST STARTING WEDGE', bh.wedge]); }
+  rows.push(['WHAT NEEDS TO HAPPEN INSTEAD', bh.required], ['WHAT\u2019S NEEDED TO DO IT', bh.capability], ['WHAT SUCCESS LOOKS LIKE DAY TO DAY', bh.adoption], ['HOW YOU\u2019LL KNOW IT\u2019S WORKING', bh.accountability], ['WHAT TO WATCH', bh.measure]);
+  rows.forEach(([l,t])=>{ html += `<div class="section-block"><div class="section-label">${l}</div><div class="section-text">${escapeHtml(t||'')}</div></div>`; });
+  html += `<div class="nudge"><span>Different people will feel this change differently.</span><button class="btn" data-goto="stakeholder">Continue to Stakeholder Alignment</button></div>`;
+  return html;
+}
+
+function renderStakeholder(){
+  let html = stageHeader('Stakeholder Alignment', 'The same understanding, said in the way that matters to each person involved.');
+  const s = stageData('stakeholder');
+  if(s.status==='loading' || s.status==='idle'){ return html + loadingBlock(LOADING_TEXT.stakeholder); }
+  if(s.status==='error'){ return html + errorBlock('stakeholder'); }
+  const stakeholders = s.data.stakeholders || {};
+  const keys = Object.keys(stakeholders).filter(k=>stakeholders[k] && stakeholders[k].means);
+  html += `<div class="stake-tabs">` + keys.map(k=>`<button class="stake-tab ${state.stakeholder===k?'active':''}" data-stake="${k}">${STAKE_LABELS[k]||k}</button>`).join('') + `</div>`;
+  const activeKey = keys.includes(state.stakeholder) ? state.stakeholder : keys[0];
+  const st = stakeholders[activeKey] || {means:'',understand:'',resist:'',action:''};
+  html += `<div class="stake-card">
+    <div class="row"><div class="section-label">WHAT THIS MEANS FOR THEM</div><div class="section-text">${escapeHtml(st.means||'')}</div></div>
+    <div class="row"><div class="section-label">WHAT THEY NEED TO UNDERSTAND</div><div class="section-text">${escapeHtml(st.understand||'')}</div></div>
+    <div class="row"><div class="section-label">WHAT THEY MIGHT PUSH BACK ON</div><div class="section-text">${escapeHtml(st.resist||'\u2014')}</div></div>
+    <div class="row"><div class="section-label">WHAT TO DO</div><div class="section-text">${escapeHtml(st.action||'')}</div></div>
+  </div>`;
+  const isDemo = state.demoMode;
+  const da = isDemo ? (s.data.decisionAction||{}) : (s.data.decision||{});
+  html += `<div class="decision-card">
+    <div class="dc-label">DECISION</div><div class="dc-value">${escapeHtml(da.decision||'')}</div>
+    <div class="dc-grid">
+      <div><div class="dc-label">WHY</div><div class="dc-value">${escapeHtml(da.reason||da.why||'')}</div></div>
+      <div><div class="dc-label">WHO ACTS ON IT</div><div class="dc-value">${escapeHtml(da.owner||'')}</div></div>
+      <div><div class="dc-label">NEXT STEP</div><div class="dc-value">${escapeHtml((da.actions&&da.actions[0])||da.action||'')}</div></div>
+      <div><div class="dc-label">REVIEW</div><div class="dc-value">${escapeHtml(da.reviewDate||'\u2014')}</div></div>
+    </div>
+    <div class="dc-label">HOW YOU\u2019LL KNOW IT\u2019S WORKING</div><div class="dc-value" style="margin-bottom:0;">${escapeHtml(da.successMetric||da.success||'')}</div>
+  </div>`;
+  html += renderLoopStrip();
+  return html;
+}
+
+function renderLoopStrip(){
+  const nodes = ['Decision','Action','Change','Outcome','New information'];
+  const track = nodes.map((n,i)=>`<span class="loop-node ${i===0?'active':''}">${n}</span>${i<nodes.length-1?'<span class="loop-arrow">\u2192</span>':''}`).join('');
+  let html = `<div class="loop-strip">
+    <div class="section-label">WHAT HAPPENS NEXT</div>
+    <div class="loop-track">${track}<span class="loop-arrow">\u2192</span><span class="loop-node">Discover</span></div>
+    <div class="loop-note">As things change, come back and tell DLSMirror \u2014 it never treats this as finished.</div>`;
+  if(!state.demoMode && state.reality.decisions.length>0){
+    const dec = state.reality.decisions[state.reality.decisions.length-1];
+    html += `<div class="outcome-box">
+      <div class="outcome-hint">Expected: ${escapeHtml(dec.expectedOutcome||'')}</div>
+      <label>What actually happened?</label>
+      <div class="free-reply-row"><textarea class="input-box" id="outcomeInput" style="min-height:44px;"></textarea><button class="btn" id="recordOutcomeBtn">Record outcome</button></div>`;
+    if(state.outcomeStep==='loading') html += loadingBlock(LOADING_TEXT.outcome);
+    if(state.outcomeStep==='error') html += `<div class="error-block"><span>DLSMirror is reconnecting to its reasoning engine.</span><button class="btn secondary" id="retryOutcome">Try again</button></div>`;
+    html += `</div>`;
+  }
+  html += `<button class="btn secondary" id="simSignal" style="margin-top:14px;">Something new just happened \u2014 not linked to this decision</button></div>`;
+  return html;
+}
+
+/* ============================= DEBUG VIEW ============================= */
+function renderDebug(){
+  const el = document.getElementById('debugContent');
+  const overlay = document.getElementById('debugOverlay');
+  if(!el || !overlay) return;
+  overlay.classList.toggle('show', state.debugOpen);
+  if(!state.debugOpen) return;
+  function block(title, obj){ return `<div class="debug-section"><h3>${title}</h3><div class="debug-block">${escapeHtml(JSON.stringify(obj, null, 2))}</div></div>`; }
+  const rankedGaps = state.reality.knowledgeGaps.filter(g=>!g.resolved).map(g=>({...g, rank:gapScore(g)})).sort((a,b)=>b.rank-a.rank);
+  el.innerHTML = `
+    <h2>DLSMirror Intelligence Engine \u2014 internal state</h2>
+    <p style="font-size:12px;color:#8b93a1;">Developer view. Not part of the founder-facing experience. Intelligence version ${state.reality.intelligenceVersion||1}.</p>
+    ${block('Business Mirror identity (server-persisted)', {businessId: state.businessId, mirrorId: state.mirrorId})}
+    ${block('Discovery assessment (app-computed, no question-count cap)', state.reality.discoveryAssessment)}
+    ${block('Pending gap this turn targets', state.pendingGapId)}
+    ${block('Ranked open knowledge gaps', rankedGaps)}
+    ${block('Evidence with lifecycle status ('+state.reality.evidence.length+')', state.reality.evidence)}
+    ${block('Signals ('+state.reality.signals.length+')', state.reality.signals)}
+    ${block('Relationship graph edges ('+state.reality.intelligenceGraph.edges.length+')', state.reality.intelligenceGraph.edges)}
+    ${block('Graph nodes ('+state.reality.intelligenceGraph.nodes.length+')', state.reality.intelligenceGraph.nodes)}
+    ${block('Patterns', state.reality.patterns)}
+    ${block('Contradictions (history preserved)', state.reality.contradictions)}
+    ${block('Diagnosis', state.reality.diagnosis)}
+    ${block('Commercial thesis', state.reality.thesis)}
+    ${block('Transition', state.reality.transition)}
+    ${block('Operating system', state.reality.operatingSystem)}
+    ${block('Behavior plan', state.reality.behavior)}
+    ${block('Stakeholders', state.reality.stakeholders)}
+    ${block('Decisions', state.reality.decisions)}
+    ${block('Outcomes', state.reality.outcomes)}
+    ${block('Learnings', state.reality.learnings)}
+    ${block('Archived history (stale versions preserved)', state.reality.history)}
+  `;
+}
+
+/* ============================= NAVIGATION ============================= */
+function goToStage(id){
+  state.stage = id; state.visited[id] = true; state.leftOpen = false;
+  render();
+  if(!state.demoMode && ['understand','diagnose','transition','behavior','stakeholder'].includes(id)){
+    if(state.live[id]===undefined || state.live[id]==='error'){ loadStage(id); }
+  }
+}
+
+/* ============================= EVENTS ============================= */
+function wireEvents(){
+  document.getElementById('langSelect').addEventListener('change', e=>{ state.lang = e.target.value; render(); });
+
+  const modeLive = document.getElementById('modeLive');
+  const modeDemo = document.getElementById('modeDemo');
+  if(modeLive) modeLive.addEventListener('click', ()=>{ if(state.demoMode){ resetAll(false); } });
+  if(modeDemo) modeDemo.addEventListener('click', ()=>{ if(!state.demoMode){ resetAll(true); } });
+
+  const debugBtn = document.getElementById('debugBtn');
+  if(debugBtn) debugBtn.addEventListener('click', ()=>{ state.debugOpen = true; render(); });
+  const debugClose = document.getElementById('debugClose');
+  if(debugClose) debugClose.addEventListener('click', ()=>{ state.debugOpen = false; render(); });
+
+  const startOverBtn = document.getElementById('startOverBtn');
+  if(startOverBtn) startOverBtn.addEventListener('click', ()=>{ resetAll(state.demoMode); });
+
+  const railToggle = document.getElementById('railToggle');
+  if(railToggle) railToggle.addEventListener('click', ()=>{ state.leftOpen=!state.leftOpen; render(); });
+
+  document.querySelectorAll('.stagebtn').forEach(btn=>{ btn.addEventListener('click', ()=>{ goToStage(btn.dataset.stage); }); });
+  const aboutBtn = document.getElementById('aboutBtn');
+  if(aboutBtn) aboutBtn.addEventListener('click', ()=>toggleAbout(true));
+
+  document.querySelectorAll('[data-example]').forEach(el=>{
+    el.addEventListener('click', ()=>{ const idx = parseInt(el.dataset.example); const box = document.getElementById('seedInput'); if(box) box.value = EXAMPLES[idx]; });
+  });
+
+  const sendSeedDemo = document.getElementById('sendSeedDemo');
+  if(sendSeedDemo) sendSeedDemo.addEventListener('click', ()=>{
+    const val = document.getElementById('seedInput').value.trim(); if(!val) return;
+    state.userText = val; state.theme = detectTheme(val); state.discoveryStep = 'question'; state.loopSignal = false; render();
+  });
+  document.querySelectorAll('.chip[data-demoidx]').forEach(el=>{
+    el.addEventListener('click', ()=>{ const idx = parseInt(el.dataset.demoidx); state.replyChoice = THEMES[state.theme].followup.replies[idx]; state.discoveryStep = 'sufficient'; render(); });
+  });
+
+  const sendSeedLive = document.getElementById('sendSeedLive');
+  if(sendSeedLive) sendSeedLive.addEventListener('click', ()=>{
+    const val = document.getElementById('seedInput').value.trim(); if(!val) return;
+    state.userText = val; startOrContinueDiscovery(val);
+  });
+  document.querySelectorAll('.chip[data-livereply]').forEach(el=>{
+    el.addEventListener('click', ()=>{ const idx = parseInt(el.dataset.livereply); const reply = (state.currentQuestion.replies||[])[idx]; startOrContinueDiscovery(reply); });
+  });
+  const sendFreeReply = document.getElementById('sendFreeReply');
+  if(sendFreeReply) sendFreeReply.addEventListener('click', ()=>{
+    const box = document.getElementById('freeReplyInput'); const val = box.value.trim(); if(!val) return; startOrContinueDiscovery(val);
+  });
+  const retryDiscovery = document.getElementById('retryDiscovery');
+  if(retryDiscovery) retryDiscovery.addEventListener('click', ()=>{
+    const lastOwner = [...state.conversation].reverse().find(t=>t.role==='owner');
+    state.conversation.pop();
+    if(lastOwner) startOrContinueDiscovery(lastOwner.text);
+  });
+
+  document.querySelectorAll('.why-toggle').forEach(el=>{ el.addEventListener('click', ()=>{ document.getElementById(el.dataset.why).classList.toggle('open'); }); });
+  document.querySelectorAll('.evidence-trace').forEach(el=>{ el.addEventListener('click', ()=>{ document.getElementById(el.dataset.trace).classList.toggle('open'); }); });
+  document.querySelectorAll('[data-goto]').forEach(btn=>{ btn.addEventListener('click', ()=>{ goToStage(btn.dataset.goto); }); });
+  document.querySelectorAll('[data-retry]').forEach(btn=>{ btn.addEventListener('click', ()=>{ const k=btn.dataset.retry; state.live[k]=undefined; loadStage(k); }); });
+  document.querySelectorAll('.stake-tab').forEach(el=>{ el.addEventListener('click', ()=>{ state.stakeholder = el.dataset.stake; render(); }); });
+  document.querySelectorAll('.layer-card[data-layer]').forEach(el=>{ el.addEventListener('click', ()=>{ const k=el.dataset.layer; state.openLayers[k]=!state.openLayers[k]; render(); }); });
+
+  const recordOutcomeBtn = document.getElementById('recordOutcomeBtn');
+  if(recordOutcomeBtn) recordOutcomeBtn.addEventListener('click', ()=>{
+    const val = document.getElementById('outcomeInput').value.trim(); if(!val) return;
+    state.lastOutcomeText = val; recordOutcome(val);
+  });
+  const retryOutcome = document.getElementById('retryOutcome');
+  if(retryOutcome) retryOutcome.addEventListener('click', ()=>{ if(state.lastOutcomeText) recordOutcome(state.lastOutcomeText); });
+
+  const simSignal = document.getElementById('simSignal');
+  if(simSignal) simSignal.addEventListener('click', ()=>{
+    state.loopSignal = true; state.stage = 'discover';
+    if(state.demoMode){ state.discoveryStep = 'input'; state.userText=''; state.theme=null; }
+    else { state.discoveryStep = 'input'; invalidateDownstream(); state.pendingGapId = null; }
+    render();
+  });
+}
+
+async function resetAll(demoMode){
+  const lang = state.lang;
+  if(!demoMode){ await clearPersisted(); } // provisions a fresh businessId/mirrorId for a real fresh start
+  const freshBusinessId = demoMode ? null : state.businessId;
+  const freshMirrorId = demoMode ? null : state.mirrorId;
+  state = {
+    demoMode: demoMode, stage:'discover', lang: lang, discoveryStep:'input', userText:'', theme:null, replyChoice:null,
+    conversation:[], currentQuestion:null, pendingGapId:null,
+    reality: emptyReality(),
+    live:{ understand:undefined, diagnose:undefined, transition:undefined, behavior:undefined, stakeholder:undefined },
+    stakeholder:'owner', openLayers:{}, loopSignal:false, leftOpen:false, visited:{discover:true},
+    outcomeStep:'idle', lastLearning:null, debugOpen:false,
+    businessId: freshBusinessId, mirrorId: freshMirrorId,
+  };
+  render();
+}
+
+function toggleAbout(show){ document.getElementById('aboutModal').classList.toggle('show', show); }
+
+/* ============================= INIT ============================= */
+(async function init(){
+  await restoreState();
+  render();
+})();
+</script>
+</body>
+</html>
