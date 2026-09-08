@@ -1,0 +1,20 @@
+{
+  "name": "dlsmirror-backend",
+  "version": "5.4.0",
+  "private": true,
+  "description": "DLSMirror reasoning gateway. Runs locally with zero configuration on a deterministic Local Reasoning Engine; optionally uses real Claude reasoning if ANTHROPIC_API_KEY is set.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NODE_ENV=development node server.js",
+    "local": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
