@@ -1,26 +1,18 @@
 const { AnthropicProvider } = require('./AnthropicProvider');
+const { OpenAIProvider } = require('./OpenAIProvider');
 const { MockProvider } = require('./MockProvider');
 
 /**
- * selectProvider — decides which ReasoningProvider backs /api/reason.
- *
- * Default behavior (no configuration required): if no Anthropic key is
- * present, DLSMirror runs on the local deterministic reasoning engine
- * automatically. It never crashes, never demands a key, and never shows an
- * API-key error just because none was provided — that's the whole point of
- * the no-API-key local build.
- *
- * Setting ANTHROPIC_API_KEY later switches to real Claude reasoning with no
- * other code change. Setting FORCE_LOCAL=true always uses the local engine
- * even if a key is present (useful for demos or cost-free testing).
+ * Provider priority:
+ * 1. FORCE_LOCAL / MOCK_MODE -> deterministic local engine
+ * 2. OPENAI_API_KEY -> real OpenAI reasoning
+ * 3. ANTHROPIC_API_KEY -> real Claude reasoning
+ * 4. otherwise -> deterministic local engine
  */
-function selectProvider({ anthropicApiKey, forceLocal, model }) {
-  if (forceLocal) {
-    return { provider: new MockProvider(), label: 'local' };
-  }
-  if (anthropicApiKey) {
-    return { provider: new AnthropicProvider({ apiKey: anthropicApiKey, model }), label: 'anthropic' };
-  }
+function selectProvider({ anthropicApiKey, openaiApiKey, forceLocal, model, openaiModel }) {
+  if (forceLocal) return { provider: new MockProvider(), label: 'local' };
+  if (openaiApiKey) return { provider: new OpenAIProvider({ apiKey: openaiApiKey, model: openaiModel }), label: 'openai' };
+  if (anthropicApiKey) return { provider: new AnthropicProvider({ apiKey: anthropicApiKey, model }), label: 'anthropic' };
   return { provider: new MockProvider(), label: 'local' };
 }
 
