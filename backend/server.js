@@ -53,23 +53,25 @@ function genericCashQuestion(text) {
     q.includes('money moves through the business');
 }
 
-function replaceStaleLocalDiscoveryQuestion(data, payload) {
+function replaceStaleLocalDiscoveryQuestion(data, payload, language) {
   if (!data?.next_question || !genericCashQuestion(data.next_question.text)) return data;
-  const owner = latestOwnerMessage(payload?.conversationTranscript).toLowerCase();
-  const previous = String(payload?.conversationTranscript || '').toLowerCase();
+  const transcript = String(payload?.conversationTranscript || '');
+  const owner = latestOwnerMessage(transcript).toLowerCase();
   const businessSignal = /restaurant|cafe|shop|store|retail|food|menu|dish|item|customer|customers|sales|revenue|weekend|busy/.test(owner);
   const cashSignal = /(cash|money).{0,120}(low|little|not much|left|short)/.test(owner);
   if (!businessSignal && !cashSignal) return data;
 
+  const askedLines = transcript.split(/\r?\n/).filter(line => /^DLSMirror:\s*/i.test(line));
+  const alreadyAskedCost = askedLines.some(line => /(biggest costs|ingredient|staff cost|rent|delivery fees)/i.test(line));
   const candidate = /restaurant|cafe|food|menu|dish|item/.test(owner)
-    ? 'What are your biggest costs on the days when sales are strongest — ingredients, staff, rent, delivery fees, or something else?'
+    ? 'Which items sell the most on weekends, and do you know which of those actually leave the most money after ingredient cost?'
     : 'When the business is busy, what usually takes the biggest share of the money coming in?';
-  if (previous.includes(normalizeQuestion(candidate).slice(0, 45))) return data;
+  if (alreadyAskedCost && transcript.toLowerCase().includes(normalizeQuestion(candidate).slice(0, 40))) return data;
 
   data.next_question = {
     text: candidate,
-    why: 'Sales are happening, but cash is not accumulating as expected. The next useful step is to understand what happens to the money after a sale, starting with the cost side rather than repeating the payment question.',
-    replies: ['Ingredients or stock', 'Staff and operating costs', 'Something else takes most of it']
+    why: 'You have now told me that busy days bring higher costs, but we still do not know whether the items driving sales are also the ones creating enough margin.',
+    replies: ['I know roughly', "I'd need to check", "I don't track that"]
   };
   return data;
 }
@@ -124,7 +126,7 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
         return res.status(statusMap[result.error.code] || 500).json({ ok: false, requestId, error: result.error });
       }
       const data = stage === 'discover' && providerLabel === 'local'
-        ? replaceStaleLocalDiscoveryQuestion(result.data, payload)
+        ? replaceStaleLocalDiscoveryQuestion(result.data, payload, language)
         : result.data;
       return res.status(200).json({ ok: true, requestId, data });
     } catch (err) {
