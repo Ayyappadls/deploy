@@ -36,16 +36,42 @@ function greetingDiscoveryResponse(language) {
                 ? 'હાય. હાલમાં બિઝનેસમાં શું ચાલી રહ્યું છે તે તમારા શબ્દોમાં કહો. તમે ક્યાંથી પણ શરૂઆત કરી શકો છો.'
                 : 'Hi. Tell me what is happening in the business, in your own words. You can start anywhere.';
   return {
-    contradictions: [],
-    evidence: [],
-    signals: [],
-    knowledge_gaps: [],
-    next_question: {
-      text,
-      why: 'I need actual business context before I can responsibly explore what matters.',
-      replies: []
-    }
+    contradictions: [], evidence: [], signals: [], knowledge_gaps: [],
+    next_question: { text, why: 'I need actual business context before I can responsibly explore what matters.', replies: [] }
   };
+}
+
+function normalizeQuestion(text) {
+  return String(text || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function genericCashQuestion(text) {
+  const q = normalizeQuestion(text);
+  return q.includes('anything else about how customers pay you') ||
+    q.includes('how the money moves through the business') ||
+    q.includes('how customers pay you') ||
+    q.includes('money moves through the business');
+}
+
+function replaceStaleLocalDiscoveryQuestion(data, payload) {
+  if (!data?.next_question || !genericCashQuestion(data.next_question.text)) return data;
+  const owner = latestOwnerMessage(payload?.conversationTranscript).toLowerCase();
+  const previous = String(payload?.conversationTranscript || '').toLowerCase();
+  const businessSignal = /restaurant|cafe|shop|store|retail|food|menu|dish|item|customer|customers|sales|revenue|weekend|busy/.test(owner);
+  const cashSignal = /(cash|money).{0,120}(low|little|not much|left|short)/.test(owner);
+  if (!businessSignal && !cashSignal) return data;
+
+  const candidate = /restaurant|cafe|food|menu|dish|item/.test(owner)
+    ? 'What are your biggest costs on the days when sales are strongest — ingredients, staff, rent, delivery fees, or something else?'
+    : 'When the business is busy, what usually takes the biggest share of the money coming in?';
+  if (previous.includes(normalizeQuestion(candidate).slice(0, 45))) return data;
+
+  data.next_question = {
+    text: candidate,
+    why: 'Sales are happening, but cash is not accumulating as expected. The next useful step is to understand what happens to the money after a sale, starting with the cost side rather than repeating the payment question.',
+    replies: ['Ingredients or stock', 'Staff and operating costs', 'Something else takes most of it']
+  };
+  return data;
 }
 
 function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
@@ -84,9 +110,6 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
     const { stage, language, payload } = req.body;
     if (!provider) return res.status(500).json({ ok: false, requestId, error: { code: 'AUTHENTICATION_ERROR', message: 'DLSMirror reasoning is not configured on this server.' } });
 
-    // Conversational input gate: greetings/acknowledgements are not business
-    // evidence. Handle them before the reasoning engine so stale Discovery
-    // gaps can never turn a simple "hi" into a fabricated business question.
     if (stage === 'discover' && isNonBusinessGreeting(latestOwnerMessage(payload?.conversationTranscript))) {
       const data = greetingDiscoveryResponse(language);
       logReasoningEvent({ requestId, sessionId, stage, startedAt, success: true, provider: 'input-gate' });
@@ -100,7 +123,10 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
         const statusMap = { SCHEMA_VALIDATION_FAILED: 502, INVALID_MODEL_RESPONSE: 502, PROVIDER_UNAVAILABLE: 503, PROVIDER_TIMEOUT: 504, RATE_LIMITED: 429, AUTHENTICATION_ERROR: 500, INVALID_REQUEST: 400 };
         return res.status(statusMap[result.error.code] || 500).json({ ok: false, requestId, error: result.error });
       }
-      return res.status(200).json({ ok: true, requestId, data: result.data });
+      const data = stage === 'discover' && providerLabel === 'local'
+        ? replaceStaleLocalDiscoveryQuestion(result.data, payload)
+        : result.data;
+      return res.status(200).json({ ok: true, requestId, data });
     } catch (err) {
       logReasoningEvent({ requestId, sessionId, stage, startedAt, success: false, errorCode: 'INTERNAL_ERROR', provider: providerLabel });
       return res.status(500).json({ ok: false, requestId, error: { code: 'INTERNAL_ERROR', message: 'DLSMirror reasoning is temporarily unavailable.' } });
