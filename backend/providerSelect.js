@@ -1,5 +1,5 @@
-const { AnthropicProvider } = require('./providers/AnthropicProvider');
-const { MockProvider } = require('./providers/MockProvider');
+const { AnthropicProvider } = require('./AnthropicProvider');
+const { MockProvider } = require('./MockProvider');
 
 /**
  * selectProvider — decides which ReasoningProvider backs /api/reason.
