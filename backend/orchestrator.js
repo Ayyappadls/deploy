@@ -12,13 +12,50 @@ function parseJsonLoose(text) {
   return null;
 }
 
+function extractPriorQuestions(transcript) {
+  return (transcript || '').split(/\r?\n/)
+    .filter(line => /^DLSMirror:\s*/i.test(line))
+    .map(line => line.replace(/^DLSMirror:\s*/i, '').trim())
+    .filter(Boolean);
+}
+
+function normalizeQuestion(text) {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function questionIsRepeat(nextQuestion, priorQuestions) {
+  const next = normalizeQuestion(nextQuestion);
+  if (!next) return true;
+  return priorQuestions.some(q => {
+    const prior = normalizeQuestion(q);
+    if (!prior) return false;
+    if (next === prior) return true;
+    // Catch close rephrasings in the same language without adding another model call.
+    const a = new Set(next.split(' ').filter(w => w.length > 2));
+    const b = new Set(prior.split(' ').filter(w => w.length > 2));
+    if (!a.size || !b.size) return false;
+    let intersection = 0;
+    a.forEach(w => { if (b.has(w)) intersection++; });
+    const union = new Set([...a, ...b]).size;
+    const jaccard = intersection / union;
+    const containment = intersection / Math.min(a.size, b.size);
+    return jaccard >= 0.72 || containment >= 0.88;
+  });
+}
+
 /** Builds {system, user} for a given stage from the frontend-supplied payload. */
 function buildRequest(stage, language, payload) {
   const pre = prompts.sysPreamble(language);
   switch (stage) {
     case 'discover': {
+      const priorQuestions = extractPriorQuestions(payload.conversationTranscript || '');
+      const latestQuestion = priorQuestions.length ? priorQuestions[priorQuestions.length - 1] : '';
       const system = pre + prompts.DISCOVERY_INSTRUCTIONS;
-      const user = `Conversation so far:\n${payload.conversationTranscript || ''}\n\nEvidence already on file:\n${JSON.stringify(payload.evidenceOnFile || [])}\n\nOpen knowledge gaps:\n${JSON.stringify(payload.openGaps || [])}`;
+      const user = `Conversation so far:\n${payload.conversationTranscript || ''}\n\nEvidence already on file:\n${JSON.stringify(payload.evidenceOnFile || [])}\n\nOpen knowledge gaps:\n${JSON.stringify(payload.openGaps || [])}\n\nDiscovery progression state:\nThe latest owner message is the answer to the immediately preceding DLSMirror question. The immediately preceding question was: ${JSON.stringify(latestQuestion)}. Do not ask it again. These are all prior DLSMirror questions and are forbidden to repeat or semantically restate:\n${JSON.stringify(priorQuestions)}`;
       return { system, user };
     }
     case 'understand': {
@@ -108,7 +145,31 @@ async function reason(stage, language, payload, provider) {
     return { ok: false, error: { code: 'SCHEMA_VALIDATION_FAILED', message: 'DLSMirror could not validate the reasoning result.' } };
   }
 
+  // Discovery has an additional application-side progression guard.
+  // The model may propose reasoning, but it cannot silently re-ask an owner question.
+  if (stage === 'discover' && parsed.next_question && parsed.next_question.text) {
+    const priorQuestions = extractPriorQuestions(payload.conversationTranscript || '');
+    if (questionIsRepeat(parsed.next_question.text, priorQuestions)) {
+      try {
+        const correctionUser = user + `\n\nPROGRESSION VALIDATION FAILED: your proposed next_question repeats or closely restates a previous DLSMirror question. Do not repeat it. Choose a materially different missing fact, business layer, relationship, contradiction, or decision-relevant unknown. Return the complete JSON object again, with a genuinely new next_question in ${language}.`;
+        raw = await provider.generate({ system, user: correctionUser });
+        parsed = parseJsonLoose(raw);
+        reason_ = parsed ? validate(stage, parsed) : 'could not parse a JSON object from the progression correction response';
+        if (reason_) {
+          return { ok: false, error: { code: 'SCHEMA_VALIDATION_FAILED', message: 'DLSMirror could not validate the reasoning result.' } };
+        }
+        if (parsed.next_question && questionIsRepeat(parsed.next_question.text, priorQuestions)) {
+          // Do not expose another repeated question. A null question lets the app
+          // continue evaluating sufficiency instead of trapping the owner in a loop.
+          parsed.next_question = null;
+        }
+      } catch (err) {
+        return { ok: false, error: { code: err.code || 'PROVIDER_UNAVAILABLE', message: 'DLSMirror reasoning is temporarily unavailable.' } };
+      }
+    }
+  }
+
   return { ok: true, data: parsed };
 }
 
-module.exports = { reason, buildRequest, parseJsonLoose };
+module.exports = { reason, buildRequest, parseJsonLoose, extractPriorQuestions, questionIsRepeat };
