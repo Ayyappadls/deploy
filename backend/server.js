@@ -22,10 +22,6 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
   app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
   // ---- Business Mirror identity + persistence ---------------------------
-  // Minimal conceptual model: businessId identifies the business, mirrorId
-  // identifies this particular Mirror instance for it. One business has one
-  // Mirror in this prototype; the ids are kept distinct so a future version
-  // could support more than one Mirror per business without a schema change.
   app.post('/api/mirror/init', (req, res) => {
     const { businessId, mirrorId } = store.createBusiness();
     res.status(201).json({ ok: true, businessId, mirrorId });
@@ -127,7 +123,6 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
 
 module.exports = { createApp };
 
-// ---- Real runtime entrypoint (not run when required by tests) -----------
 if (require.main === module) {
   const PORT = process.env.PORT || 8787;
   const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -143,17 +138,16 @@ if (require.main === module) {
   if (providerLabel === 'local') {
     console.log('[dlsmirror] No ANTHROPIC_API_KEY found (or local mode forced) - starting on the Local Reasoning Engine.');
     console.log('[dlsmirror] This is a deterministic, offline simulation, not a real AI model - no cost, no key, no internet needed.');
-    console.log('[dlsmirror] Set ANTHROPIC_API_KEY in backend/.env whenever you want to switch to real Claude reasoning.');
+    console.log('[dlsmirror] Set ANTHROPIC_API_KEY whenever you want to switch to real Claude reasoning.');
   } else {
     console.log('[dlsmirror] ANTHROPIC_API_KEY found - using real Claude reasoning.');
   }
 
   const rateLimit = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX });
   const store = new MirrorStore({ dataDir: DATA_DIR });
-
   const app = createApp({ provider, providerLabel, rateLimit, store, nodeEnv: NODE_ENV });
 
-  app.listen(PORT, () => {
-    console.log(`DLSMirror backend listening on http://localhost:${PORT} (env=${NODE_ENV}, provider=${providerLabel}, data=${DATA_DIR})`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`DLSMirror backend listening on port ${PORT} (env=${NODE_ENV}, provider=${providerLabel}, data=${DATA_DIR})`);
   });
 }
