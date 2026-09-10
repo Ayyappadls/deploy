@@ -126,6 +126,15 @@ test('one evidence reference cannot establish a relationship', () => {
   assert.equal(s.complete, false);
 });
 
+test('duplicate evidence references cannot establish a relationship', () => {
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'OWNER-PROVIDED' }
+  ];
+  const relationships = [{ signalAId:'s1', signalBId:'s2', type:'CONTRIBUTES_TO', supportingEvidenceIds:['e1','e1'] }];
+  const s = state('Owner: Sales are down.', evidence, [{id:'s1',signal:'Sales down'},{id:'s2',signal:'Cash tighter'}], [], [], relationships);
+  assert.equal(s.relationshipReadiness.ready, false);
+});
+
 test('hypothesis evidence cannot establish a relationship', () => {
   const evidence = [
     { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'HYPOTHESIS' },
@@ -133,6 +142,16 @@ test('hypothesis evidence cannot establish a relationship', () => {
   ];
   const relationships = [{ signalAId:'s1', signalBId:'s2', type:'CONTRIBUTES_TO', supportingEvidenceIds:['e1','e2'] }];
   const s = state('Owner: I think sales are causing the cash problem.', evidence, [{id:'s1',signal:'Sales down'},{id:'s2',signal:'Cash tighter'}], [], [], relationships);
+  assert.equal(s.relationshipReadiness.ready, false);
+});
+
+test('relationship references must point to current active signals', () => {
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e2', normalizedMeaning: 'Cash is tighter.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' }
+  ];
+  const relationships = [{ signalAId:'stale-1', signalBId:'stale-2', type:'CONTRIBUTES_TO', supportingEvidenceIds:['e1','e2'] }];
+  const s = state('Owner: Sales are down and cash is tighter.', evidence, [{id:'s1',signal:'Sales down'},{id:'s2',signal:'Cash tighter'}], [], [], relationships);
   assert.equal(s.relationshipReadiness.ready, false);
 });
 
@@ -144,4 +163,37 @@ test('two established evidence references can establish relationship readiness',
   const relationships = [{ signalAId:'s1', signalBId:'s2', type:'CONTRIBUTES_TO', supportingEvidenceIds:['e1','e2'] }];
   const s = state('Owner: Sales are down and cash is tighter.\nOwner: I am worried about what is causing the cash pressure.', evidence, [{id:'s1',signal:'Sales down'},{id:'s2',signal:'Cash tighter'}], [], [], relationships);
   assert.equal(s.relationshipReadiness.ready, true);
+});
+
+test('exact clothing-shop scenario remains in discovery without a supported relationship', () => {
+  const transcript = [
+    'Owner: I run a small women’s clothing shop selling sarees, dress materials and ready-made clothes. Recently, sales have started slowing down, and I’m feeling more pressure on cash than I used to.',
+    'DLSMirror: When the money comes in, what usually takes it back out again?',
+    'Owner: A lot of the money goes back into buying new stock. Some also goes toward supplier payments, staff salaries, rent, and other regular expenses. Recently, more money seems to be getting tied up in slow-moving inventory and customer credit.',
+    'DLSMirror: When the business is changing, what has happened to the money coming in compared with before?',
+    'Owner: Earlier, we were doing around ₹7–8 lakh a month. Recently, it has come down to around ₹5–6 lakh. Customers are still coming in, but they’re buying less than before.',
+    'DLSMirror: What has become harder to deliver or manage day to day compared with before?',
+    'Owner: Day to day, managing inventory has become harder. Some clothes are selling slowly, so more money is getting stuck in stock. I’m also having to be more careful about giving customers credit because cash is tighter.',
+    'DLSMirror: Who usually makes the important day-to-day decisions, and what happens when you are not there?',
+    'Owner: I usually make the important day-to-day decisions myself. When I’m not there, the staff can handle routine customer interactions and sales, but they usually come to me for decisions about purchasing stock, giving credit, pricing, or anything unusual.'
+  ].join('\n');
+  const evidence = [
+    {id:'e1',normalizedMeaning:'Women’s clothing retail shop selling sarees, dress materials and ready-made clothes.',layer:'offer',evidenceStatus:'OWNER-PROVIDED'},
+    {id:'e2',normalizedMeaning:'Sales have slowed down.',layer:'revenue',evidenceStatus:'OWNER-PROVIDED'},
+    {id:'e3',normalizedMeaning:'Cash pressure has increased.',layer:'finance',evidenceStatus:'OWNER-PROVIDED'},
+    {id:'e4',normalizedMeaning:'Money is tied up in slow-moving inventory and customer credit.',layer:'finance',evidenceStatus:'OWNER-PROVIDED'},
+    {id:'e5',normalizedMeaning:'Monthly sales fell from ₹7–8 lakh to ₹5–6 lakh and customers buy less.',layer:'customer',evidenceStatus:'OWNER-PROVIDED'},
+    {id:'e6',normalizedMeaning:'Inventory is harder to manage and some clothes sell slowly.',layer:'operations',evidenceStatus:'OWNER-PROVIDED'},
+    {id:'e7',normalizedMeaning:'Owner makes purchasing, credit, pricing and unusual decisions.',layer:'organization',evidenceStatus:'OWNER-PROVIDED'}
+  ];
+  const signals = [
+    {id:'s1',signal:'Sales are slowing',severity:'high',relatedLayers:['revenue','customer']},
+    {id:'s2',signal:'Cash pressure',severity:'high',relatedLayers:['finance']},
+    {id:'s3',signal:'Slow-moving inventory',severity:'high',relatedLayers:['operations','finance']}
+  ];
+  const s = state(transcript, evidence, signals);
+  assert.equal(s.complete, false);
+  assert.equal(s.relationshipReadiness.ready, false);
+  assert.equal(s.nextBestQuestion.objective, 'test_relationship');
+  assert.match(s.nextBestQuestion.text, /connected|separate/i);
 });
