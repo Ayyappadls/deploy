@@ -16,7 +16,7 @@ function greetingDiscoveryResponse(language) { const lang=String(language||'Engl
 function buildFrontendIndex(){
  const file=path.join(__dirname,'index.html');
  let html=fs.readFileSync(file,'utf8');
- const gate='''
+ const gate=`
 <script>
 (function(){
   const originalCallDLSReasoning = window.callDLSReasoning;
@@ -44,7 +44,7 @@ function buildFrontendIndex(){
     };
   };
 })();
-</script>'''
+</script>`;
  html=html.replace('</body>',gate+'\n</body>');
  const marker='function evaluateDiscoverySufficiency(){';
  const replacement=marker+'\n  const backendAssessment=window.__dlsDiscoveryAssessment&&window.__dlsDiscoveryAssessment();\n  if(backendAssessment) return backendAssessment;';
@@ -62,7 +62,7 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
  try { const result=await reason(stage,language||'English',payload,provider); logReasoningEvent({requestId,sessionId,stage,startedAt,success:result.ok,errorCode:result.ok?undefined:result.error.code,provider:providerLabel}); if(!result.ok){const statusMap={SCHEMA_VALIDATION_FAILED:502,INVALID_MODEL_RESPONSE:502,PROVIDER_UNAVAILABLE:503,PROVIDER_TIMEOUT:504,RATE_LIMITED:429,AUTHENTICATION_ERROR:500,INVALID_REQUEST:400};return res.status(statusMap[result.error.code]||500).json({ok:false,requestId,error:result.error});}
  let data=result.data;
  if(stage==='discover'){
-   const discovery=computeDiscoveryState({transcript:payload?.conversationTranscript||'',evidenceOnFile:payload?.evidenceOnFile||[],signals:payload?.signals||[],openGaps:payload?.openGaps||[],contradictions:data.contradictions||payload?.contradictions||[],relationships:payload?.relationships||[]});
+   const discovery=computeDiscoveryState({transcript:payload?.conversationTranscript||'',evidenceOnFile:payload?.evidenceOnFile||[],signals:payload?.signals||[],openGaps:payload?.openGaps||[],contradictions:payload?.contradictions||data.contradictions||[],relationships:payload?.relationships||[]});
    const combinedEvidence=[...(payload?.evidenceOnFile||[]),...(data.evidence||[])];
    data.relationships=(data.relationships||[]).filter(r=>supportedEvidence(r,{evidence:combinedEvidence,evidenceOnFile:combinedEvidence}));
    data=applyController(data,discovery);
@@ -75,4 +75,4 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
  app.get('/api/health',(req,res)=>res.json({ok:true,env:nodeEnv,provider:providerLabel})); return app;
 }
 module.exports={createApp};
-if(require.main===module){const PORT=process.env.PORT||8787,NODE_ENV=process.env.NODE_ENV||'development',ANTHROPIC_API_KEY=process.env.ANTHROPIC_API_KEY||'',ANTHROPIC_MODEL=process.env.ANTHROPIC_MODEL||'claude-sonnet-4-6',OPENAI_API_KEY=process.env.OPENAI_API_KEY||'',OPENAI_MODEL=process.env.OPENAI_MODEL||'gpt-5.6-luna',RATE_LIMIT_WINDOW_MS=Number(process.env.RATE_LIMIT_WINDOW_MS||5*60*1000),RATE_LIMIT_MAX=Number(process.env.RATE_LIMIT_MAX||60),DATA_DIR=process.env.DATA_DIR||path.join(__dirname,'data'),forceLocal=process.env.MOCK_MODE==='true'||process.env.FORCE_LOCAL==='true';const {provider,label:providerLabel}=selectProvider({anthropicApiKey:ANTHROPIC_API_KEY,openaiApiKey:OPENAI_API_KEY,forceLocal,model:ANTHROPIC_MODEL,openaiModel:OPENAI_MODEL});const rateLimit=createRateLimiter({windowMs:RATE_LIMIT_WINDOW_MS,max:RATE_LIMIT_MAX});const store=new MirrorStore({dataDir:DATA_DIR});const app=createApp({provider,providerLabel,rateLimit,store,nodeEnv:NODE_ENV});app.listen(PORT,'0.0.0.0',()=>console.log(`DLSMirror backend listening on port ${PORT} (env=${NODE_ENV}, provider=${providerLabel}, data=${DATA_DIR})`));}
+if(require.main===module){const PORT=process.env.PORT||8787,NODE_ENV=process.env.NODE_ENV||'development',ANTHROPIC_API_KEY=process.env.ANTHROPIC_API_KEY||'',ANTHROPIC_MODEL=process.env.ANTHROPIC_MODEL||'claude-sonnet-4-6',OPENAI_API_KEY=process.env.OPENAI_API_KEY||'',OPENAI_MODEL=process.env.OPENAI_MODEL||'gpt-5.6-luna',RATE_LIMIT_WINDOW_MS=Number(process.env.RATE_LIMIT_WINDOW_MS||5*60*1000),RATE_LIMIT_MAX=Number(process.env.RATE_LIMIT_MAX||60),DATA_DIR=process.env.DATA_DIR||path.join(__dirname,'data'),forceLocal=process.env.MOCK_MODE==='true'||process.env.FORCE_LOCAL==='true';const {provider,label:providerLabel}=selectProvider({anthropicApiKey:ANTHROPIC_API_KEY,openaiApiKey:OPENAI_API_KEY,forceLocal,model:ANTHROPIC_MODEL,openaiModel:OPENAI_MODEL});const rateLimit=createRateLimiter({windowMs:RATE_LIMIT_WINDOW_MS,max:RATE_LIMIT_MAX});const store=new MirrorStore({dataDir:DATA_DIR});const app=createApp({provider,providerLabel,rateLimit,store,nodeEnv:NODE_ENV});app.listen(PORT,'0.0.0.0',()=>console.log(`DLSMirror backend listening on port ${PORT} (env=${NODE_ENV}, provider=${providerLabel}, data=${DATA_DIR}`));}
