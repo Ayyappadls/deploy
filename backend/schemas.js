@@ -1,6 +1,6 @@
 /** Strict validation for provider output. Provider output is untrusted input. */
 const LAYERS = ['owner','offer','customer','revenue','market','operations','finance','organization','commercial','external'];
-const EVIDENCE_STATUSES = ['OWNER-PROVIDED','OBSERVED','CALCULATED','INFERRED','HYPOTHESIS'];
+const EVIDENCE_STATUSES = ['OWNER-PROVIDED','OBSERVED','CALCULATED','INFERRED','HYPOTHESIS','UNKNOWN'];
 const SEVERITIES = ['low','medium','high'];
 const IMPORTANCES = ['low','medium','high'];
 const SIGNAL_TYPES = ['commercial','operational','customer','organizational'];
@@ -18,7 +18,11 @@ function validateDiscover(data){
 }
 function validateUnderstand(data){
  if(!isObj(data)||!isArr(data.relationships)||!isObj(data.pattern)||!isStr(data.pattern.statement))return'invalid understand response';
- for(const r of data.relationships)if(!isObj(r)||!isStr(r.signalAId)||!isStr(r.signalBId)||!isStr(r.relationship))return'invalid relationship';
+ for(const r of data.relationships){
+  if(!isObj(r)||!isStr(r.signalAId)||!isStr(r.signalBId)||!isStr(r.relationship))return'invalid relationship';
+  if(!inSet(r.type,RELATIONSHIP_TYPES))return'invalid relationship type';
+  if(!isArr(r.supportingEvidenceIds)||r.supportingEvidenceIds.length<2||r.supportingEvidenceIds.some(id=>!isStr(id)))return'relationship requires at least two supporting evidence ids';
+ }
  return null;
 }
 function validateDiagnose(data){
