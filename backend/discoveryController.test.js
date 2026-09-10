@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { computeDiscoveryState, applyController } = require('./discoveryController');
 
-function state(transcript, evidenceOnFile = [], signals = [], openGaps = [], contradictions = []) {
-  return computeDiscoveryState({ transcript, evidenceOnFile, signals, openGaps, contradictions });
+function state(transcript, evidenceOnFile = [], signals = [], openGaps = [], contradictions = [], relationships = []) {
+  return computeDiscoveryState({ transcript, evidenceOnFile, signals, openGaps, contradictions, relationships });
 }
 
 test('empty or non-business input stays in orientation and asks for context', () => {
@@ -53,12 +53,25 @@ test('inferred or hypothetical evidence is verified before it is treated as fact
   assert.equal(s.nextBestQuestion.objective, 'verify_inference');
 });
 
-test('previously asked questions are excluded', () => {
-  const transcript = 'Owner: Sales are slow.\nDLSMirror: When you say sales are down, is it mainly fewer customers, smaller purchases, or both?\nOwner: Fewer customers.';
-  const evidence = [{ id: 'e1', normalizedMeaning: 'Fewer customers are buying.', layer: 'customer', evidenceStatus: 'OWNER-PROVIDED' }];
+test('previously asked questions are excluded even when wording is highly similar', () => {
+  const transcript = 'Owner: Sales are slow.\nDLSMirror: When you say sales are down, is it mainly fewer customers, smaller purchases, or both?\nOwner: Customers are buying less.';
+  const evidence = [{ id: 'e1', normalizedMeaning: 'Customers are buying less.', layer: 'customer', evidenceStatus: 'OWNER-PROVIDED' }];
   const signals = [{ id: 's1', signal: 'Customer activity is lower', severity: 'high', relatedLayers: ['customer'], supportingEvidenceKeys: ['e1'] }];
   const s = state(transcript, evidence, signals);
   assert.notEqual(s.nextBestQuestion?.text, 'When you say sales are down, is it mainly fewer customers, smaller purchases, or both?');
+  assert.ok(!s.nextBestQuestion || !/fewer customers, smaller purchases, or both/i.test(s.nextBestQuestion.text));
+});
+
+test('the same finance question is never selected twice', () => {
+  const transcript = 'Owner: Sales are down and cash feels tight.\nDLSMirror: When the money comes in, what usually takes it back out again?\nOwner: Stock, suppliers, salaries and rent take most of it out.';
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e2', normalizedMeaning: 'Cash feels tight.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e3', normalizedMeaning: 'Money goes to stock, suppliers, salaries and rent.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' }
+  ];
+  const signals = [{ id: 's1', signal: 'Cash pressure', severity: 'high', relatedLayers: ['finance'], supportingEvidenceKeys: ['e2'] }];
+  const s = state(transcript, evidence, signals);
+  assert.notEqual(s.nextBestQuestion?.text, 'When the money comes in, what usually takes it back out again?');
 });
 
 test('generic full-picture question is overridden by the controller', () => {
@@ -81,4 +94,54 @@ test('discovery does not declare completion from question count alone', () => {
   ];
   const s = state(transcript, evidence, [], [{ question: 'What is changing in the market?', importance: 'high', diagnosticImpact: 'high', decisionImpact: 'medium', relationshipImpact: 'medium' }]);
   assert.equal(s.complete, false);
+});
+
+test('multiple signals without an evidence-backed relationship never complete discovery', () => {
+  const transcript = 'Owner: Sales are down and cash is tighter.\nDLSMirror: What has become harder to manage?\nOwner: Inventory is harder to manage.';
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e2', normalizedMeaning: 'Cash is tighter.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e3', normalizedMeaning: 'Inventory is harder to manage.', layer: 'operations', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e4', normalizedMeaning: 'The owner runs the business.', layer: 'owner', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e5', normalizedMeaning: 'The business has customers.', layer: 'customer', evidenceStatus: 'OWNER-PROVIDED' }
+  ];
+  const signals = [
+    { id: 's1', signal: 'Sales are down', severity: 'high', relatedLayers: ['revenue'] },
+    { id: 's2', signal: 'Cash is tighter', severity: 'high', relatedLayers: ['finance'] }
+  ];
+  const s = state(transcript, evidence, signals);
+  assert.equal(s.relationshipReadiness.ready, false);
+  assert.equal(s.complete, false);
+  assert.equal(s.nextBestQuestion.objective, 'test_relationship');
+});
+
+test('one evidence reference cannot establish a relationship', () => {
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e2', normalizedMeaning: 'Cash is tighter.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' }
+  ];
+  const relationships = [{ signalAId:'s1', signalBId:'s2', type:'CONTRIBUTES_TO', supportingEvidenceIds:['e1'] }];
+  const s = state('Owner: Sales are down and cash is tighter.', evidence, [{id:'s1',signal:'Sales down'},{id:'s2',signal:'Cash tighter'}], [], [], relationships);
+  assert.equal(s.relationshipReadiness.ready, false);
+  assert.equal(s.complete, false);
+});
+
+test('hypothesis evidence cannot establish a relationship', () => {
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'HYPOTHESIS' },
+    { id: 'e2', normalizedMeaning: 'Cash is tighter.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' }
+  ];
+  const relationships = [{ signalAId:'s1', signalBId:'s2', type:'CONTRIBUTES_TO', supportingEvidenceIds:['e1','e2'] }];
+  const s = state('Owner: I think sales are causing the cash problem.', evidence, [{id:'s1',signal:'Sales down'},{id:'s2',signal:'Cash tighter'}], [], [], relationships);
+  assert.equal(s.relationshipReadiness.ready, false);
+});
+
+test('two established evidence references can establish relationship readiness', () => {
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Sales are down.', layer: 'revenue', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e2', normalizedMeaning: 'Cash is tighter.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' }
+  ];
+  const relationships = [{ signalAId:'s1', signalBId:'s2', type:'CONTRIBUTES_TO', supportingEvidenceIds:['e1','e2'] }];
+  const s = state('Owner: Sales are down and cash is tighter.\nOwner: I am worried about what is causing the cash pressure.', evidence, [{id:'s1',signal:'Sales down'},{id:'s2',signal:'Cash tighter'}], [], [], relationships);
+  assert.equal(s.relationshipReadiness.ready, true);
 });
