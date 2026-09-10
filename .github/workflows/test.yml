@@ -3,6 +3,7 @@ name: DLSMirror Prototype Tests
 on:
   push:
     branches:
+      - main
       - dlsmirror-discovery-continuation
   pull_request:
     branches:
