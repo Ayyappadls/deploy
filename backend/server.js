@@ -8,6 +8,7 @@ const { createRateLimiter } = require('./rateLimiter');
 const { logReasoningEvent, genRequestId } = require('./logger');
 const { MirrorStore } = require('./store');
 const { computeDiscoveryState, applyController } = require('./discoveryController');
+const { gateStage } = require('./methodologyGate');
 
 function isNonBusinessGreeting(text) {
   return /^(hi|hii|hiii|hello|hey|heyy|yo|sup|namaste|hola|good morning|good afternoon|good evening)[.!?\s]*$/i.test(String(text || '').trim());
@@ -24,7 +25,7 @@ function greetingDiscoveryResponse(language) {
     : lang.includes('hindi') ? 'हाय। अभी बिज़नेस में क्या हो रहा है, अपने शब्दों में बताइए। आप कहीं से भी शुरू कर सकते हैं।'
     : lang.includes('tamil') ? 'ஹாய். இப்போது business-ல் என்ன நடக்கிறது என்பதை உங்கள் சொற்களில் சொல்லுங்கள். எங்கிருந்தும் தொடங்கலாம்.'
     : lang.includes('kannada') ? 'ಹಾಯ್. ಈಗ business ನಲ್ಲಿ ಏನು ನಡೆಯುತ್ತಿದೆ ಎಂಬುದನ್ನು ನಿಮ್ಮದೇ ಮಾತಿನಲ್ಲಿ ಹೇಳಿ. ಎಲ್ಲಿಂದ ಬೇಕಾದರೂ ಆರಂಭಿಸಬಹುದು.'
-    : lang.includes('malayalam') ? 'ഹായ്. ഇപ്പോൾ business-ൽ എന്താണ് നടക്കുന്നത് എന്ന് നിങ്ങളുടെ വാക്കുകളിൽ പറയൂ. എവിടെ നിന്നുമെങ്കിലും തുടങ്ങാം.'
+    : lang.includes('malayalam') ? 'ഹായ്. ഇപ്പോൾ business-ൽ എന്താണ് നടക്കുന്നത് എന്ന് നിങ്ങളുടെ വാക്കുകളിൽ പറയൂ. എവിടെ നിന്നുമെങ്കിലും ആരംഭിക്കാം.'
     : lang.includes('marathi') ? 'हाय. सध्या व्यवसायात काय चालले आहे ते तुमच्या शब्दांत सांगा. कुठूनही सुरुवात करू शकता.'
     : lang.includes('gujarati') ? 'હાય. હાલમાં બિઝનેસમાં શું ચાલી રહ્યું છે તે તમારા શબ્દોમાં કહો. તમે ક્યાંથી પણ શરૂઆત કરી શકો છો.'
     : 'Hi. Tell me what is happening in the business, in your own words. You can start anywhere.';
@@ -106,6 +107,10 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
           nextObjective: discovery.nextBestQuestion?.objective || null,
           nextLayer: discovery.nextBestQuestion?.layer || null
         };
+      } else {
+        const gated = gateStage(stage, data, payload || {});
+        data = gated.data;
+        data.methodologyGate = data.methodologyGate || gated.gate;
       }
       return res.status(200).json({ ok: true, requestId, data });
     } catch (err) {
