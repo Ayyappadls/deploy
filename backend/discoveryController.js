@@ -25,7 +25,7 @@ function evidenceIds(e=[]){return new Set((e||[]).map(x=>x?.id).filter(Boolean))
 function evidenceStatus(id,evidence=[]){const e=(evidence||[]).find(x=>x?.id===id);return String(e?.evidenceStatus||'').toUpperCase();}
 function supportedRelationship(r,evidence=[],signals=[]){
  const ids=evidenceIds(evidence),refs=Array.isArray(r?.supportingEvidenceIds)?r.supportingEvidenceIds:[],signalIds=new Set((signals||[]).map(s=>s?.id).filter(Boolean));
- if(refs.length<2||!refs.every(id=>ids.has(id)))return false;
+ if(refs.length<2||new Set(refs).size<2||!refs.every(id=>ids.has(id)))return false;
  if(!r?.signalAId||!r?.signalBId||r.signalAId===r.signalBId)return false;
  if(!signalIds.has(r.signalAId)||!signalIds.has(r.signalBId))return false;
  if(!['CAUSES','CORRELATES_WITH','CONTRIBUTES_TO'].includes(r?.type))return false;
