@@ -8,7 +8,7 @@ function dlsQuestions(t=''){return String(t).split(/\r?\n/).filter(x=>/^DLSMirro
 function latestOwner(t=''){const a=ownerTurns(t);return a[a.length-1]||'';}
 function meaningfulEvidence(e=[]){return(e||[]).filter(x=>x&&x.normalizedMeaning&&!/^owner shared additional detail/i.test(x.normalizedMeaning));}
 function hasLayer(e,l){return(e||[]).some(x=>x.layer===l);}
-function hasQuestion(q,c){const a=norm(c);if(!a)return true;return q.some(x=>{const b=norm(x);if(a===b)return true;const aw=new Set(a.split(' ').filter(w=>w.length>3)),bw=new Set(b.split(' ').filter(w=>w.length>3));let i=0;aw.forEach(w=>bw.has(w)&&i++);return i/Math.max(1,Math.min(aw.size,bw.size))>=.8;});}
+function hasQuestion(q,c){const a=norm(c);if(!a)return true;return q.some(x=>{const b=norm(x);if(a===b)return true;const aw=new Set(a.split(' ').filter(w=>w.length>3)),bw=new Set(b.split(' ').filter(w=>w.length>3));let i=0;aw.forEach(w=>bw.has(w)&&i++);const ratio=i/Math.max(1,Math.min(aw.size,bw.size));return ratio>=.8||((aw.size>=5&&bw.size>=5)&&i>=Math.min(aw.size,bw.size)-1);});}
 function questionForLayer(layer,latest){
  if(layer==='owner')return'What are you trying to change or improve in the business right now?';
  if(layer==='offer')return'What do you mainly sell or provide, and what has been happening with it lately?';
@@ -48,9 +48,10 @@ function alreadyResolvedCustomerMix(evidence=[],transcript=''){
 function buildCandidates({latest,evidence,signals,openGaps,contradictions,questions,relationships,transcript}){
  const c=[],meaningful=meaningfulEvidence(evidence),seen=new Set((evidence||[]).map(e=>e.layer));
  const rel=relationshipReadiness({evidence,signals,relationships});
+ const currentOwnerIsSubstantive=SUBSTANTIVE.test(latest);
  if((contradictions||[]).length)c.push({priority:100,objective:'resolve_contradiction',text:'I noticed two things that may not line up. Which one is closer to what usually happens in the business?',why:'I want to resolve the conflict before using either statement to draw a conclusion.'});
  for(const e of(evidence||[]).filter(x=>WEAK_STATUSES.has(String(x.evidenceStatus||'').toUpperCase())).slice(0,2))if(e.verificationQuestion&&!hasQuestion(questions,e.verificationQuestion))c.push({priority:97,objective:'verify_inference',layer:e.layer,text:e.verificationQuestion,why:'This is currently an inference or hypothesis, so checking it will materially reduce uncertainty.'});
- if(!meaningful.length)c.push({priority:1000,objective:'orient',layer:'owner',text:'Tell me a little about the business first — what do you sell or provide, and what has been happening recently?',why:'I do not have enough business context yet to choose a specific line of investigation.'});
+ if(!meaningful.length&&!currentOwnerIsSubstantive)c.push({priority:1000,objective:'orient',layer:'owner',text:'Tell me a little about the business first — what do you sell or provide, and what has been happening recently?',why:'I do not have enough business context yet to choose a specific line of investigation.'});
  const customerMixKnown=alreadyResolvedCustomerMix(evidence,transcript);
  if(/sales?\s*(are|is|have|has)?\s*(slow|down|fall|drop|declin)|fewer customers|customers?\s*(are|have|are not)\s*(coming|buying)|revenue\s*(is|has)\s*(down|fall)/i.test(latest)&&!customerMixKnown)c.push({priority:92,objective:'clarify_active_signal',layer:/customer/i.test(latest)?'customer':'revenue',text:/customer/i.test(latest)?'When you say customers have changed, are fewer people coming, or are they buying less when they come?':'When you say sales are down, is it mainly fewer customers, smaller purchases, or both?',why:'I want to define the change clearly before testing what is causing it.'});
  if(/cash|money|not enough left|short of money|cash flow/i.test(latest))c.push({priority:90,objective:'trace_money',layer:'finance',text:'When the money comes in, what usually takes it back out again?',why:'The cash signal matters, but I need to understand where the money goes before deciding what is constraining it.'});
@@ -66,7 +67,7 @@ function computeDiscoveryState({transcript='',evidenceOnFile=[],signals=[],openG
  const latest=latestOwner(transcript),evidence=Array.isArray(evidenceOnFile)?evidenceOnFile:[],questions=dlsQuestions(transcript),meaningful=meaningfulEvidence(evidence),rel=relationshipReadiness({evidence,signals,relationships}),decisionReady=decisionContextReady({latest,evidence}),candidates=buildCandidates({latest,evidence,signals,openGaps,contradictions,questions,relationships,transcript});
  candidates.sort((a,b)=>b.priority-a.priority);
  const materialUnknowns=(openGaps||[]).filter(g=>g&&(g.importance==='high'||g.diagnosticImpact==='high'||g.decisionImpact==='high'||g.relationshipImpact==='high'));
- const stage=!meaningful.length?'ORIENTATION':signals.length?'SIGNAL_INVESTIGATION':'BUSINESS_REALITY';
+ const stage=!meaningful.length&&!SUBSTANTIVE.test(latest)?'ORIENTATION':signals.length?'SIGNAL_INVESTIGATION':'BUSINESS_REALITY';
  const factCount=meaningful.filter(e=>FACT_STATUSES.has(String(e.evidenceStatus||'').toUpperCase())).length;
  const coreContext=hasLayer(evidence,'owner')&&(hasLayer(evidence,'customer')||hasLayer(evidence,'offer'))&&hasLayer(evidence,'revenue');
  const complete=factCount>=5&&signals.length>=1&&rel.ready&&materialUnknowns.length===0&&!(contradictions||[]).length&&coreContext&&decisionReady;
