@@ -44,15 +44,25 @@ function alreadyResolvedCustomerMix(evidence=[],transcript=''){
  const text=[String(transcript||''),...(evidence||[]).map(e=>e.normalizedMeaning||e.originalStatement||'')].join(' ');
  return /(fewer|less) customers?.{0,120}(spend|buy|purchase)|(spend|buy|purchase).{0,120}(less|lower).{0,120}customers?|both.{0,80}customers?/i.test(text)&&/customer/i.test(text);
 }
+function evidenceText(e=[]){return(e||[]).map(x=>x?.normalizedMeaning||x?.originalStatement||x?.statement||'').filter(Boolean).join(' ');}
+function signalNames(signals=[]){return(signals||[]).filter(s=>s?.id).map(s=>String(s.signal||s.name||'').trim()).filter(Boolean);}
 function relationshipQuestion(signals=[],evidence=[]){
- const active=(signals||[]).filter(s=>s?.id).slice(0,3);
- if(active.length>=2){
-  const names=active.slice(0,2).map(s=>String(s.signal||s.name||'this change').trim()).filter(Boolean);
-  if(names.length===2)return`You mentioned ${names[0]} and ${names[1]}. Do you think they are connected, or could they be separate issues? What makes you say that?`;
- }
+ const names=signalNames(signals);
+ if(names.length>=2)return`You mentioned ${names[0]} and ${names[1]}. Do you think they are connected, or could they be separate issues? What makes you say that?`;
+ const text=evidenceText(evidence);
+ if(/revenue/i.test(text)&&/profit|cash|margin/i.test(text)&&/cost|support|engineering|salary|expense/i.test(text))return'Your revenue is growing, but profit or cash is not improving while costs are rising. Do you think the extra revenue is coming with higher costs to serve customers? What have you observed?';
+ if(/customer|client/i.test(text)&&/custom|support|implementation|service/i.test(text)&&/engineering|operation|cost/i.test(text))return'You mentioned customers need more customization or support, while delivery effort is increasing. Do you think the customer requirements are driving the higher delivery cost? What have you observed?';
  const layers=[...new Set((evidence||[]).map(e=>e?.layer).filter(Boolean))].slice(-2);
  if(layers.length===2)return`Two parts of the business are changing at the same time. Do you see a connection between ${layers[0]} and ${layers[1]}, or are they separate? What have you observed?`;
  return'You mentioned a few things changing at the same time. Which of them do you think is connected to another, if any, and what makes you say that?';
+}
+function adaptiveEconomicQuestion(latest,evidence,signals){
+ const text=`${latest} ${evidenceText(evidence)}`;
+ const names=signalNames(signals);
+ if(/revenue/i.test(text)&&/profit|margin|cash/i.test(text)&&/cost|expense|support|implementation|engineering|salary/i.test(text))return{priority:96,objective:'test_economic_mechanism',text:'You’re growing revenue, but profit and cash aren’t improving while the cost and effort to serve customers are increasing. Is the additional revenue coming with disproportionately higher cost to serve? What have you observed?',why:'Revenue growth and deteriorating economics are both material signals. I need to test whether the changing cost-to-serve explains the gap before moving to another business area.'};
+ if(/customization|customer-specific/i.test(text)&&/support|implementation|engineering/i.test(text)&&/cost|effort|capacity|profit|cash/i.test(text))return{priority:96,objective:'test_delivery_economics',text:'You mentioned more customization, support and customer-specific engineering work. Is this extra customer complexity materially increasing the cost or team capacity required to serve each customer?',why:'Several signals point to a possible customer-complexity-to-cost mechanism that has not yet been tested.'};
+ if(names.length>=2)return{priority:94,objective:'test_relationship',text:relationshipQuestion(signals,evidence),why:'I have multiple active signals without an evidence-backed relationship. I need to test the most material connection before deeper interpretation.'};
+ return null;
 }
 function buildCandidates({latest,evidence,signals,openGaps,contradictions,questions,relationships,transcript}){
  const c=[],meaningful=meaningfulEvidence(evidence),seen=new Set((evidence||[]).map(e=>e.layer));
@@ -64,10 +74,12 @@ function buildCandidates({latest,evidence,signals,openGaps,contradictions,questi
  const customerMixKnown=alreadyResolvedCustomerMix(evidence,transcript);
  if(/sales?\s*(are|is|have|has)?\s*(slow|down|fall|drop|declin)|fewer customers|customers?\s*(are|have|are not)\s*(coming|buying)|revenue\s*(is|has)\s*(down|fall)/i.test(latest)&&!customerMixKnown)c.push({priority:92,objective:'clarify_active_signal',layer:/customer/i.test(latest)?'customer':'revenue',text:/customer/i.test(latest)?'When you say customers have changed, are fewer people coming, or are they buying less when they come?':'When you say sales are down, is it mainly fewer customers, smaller purchases, or both?',why:'I want to define the change clearly before testing what is causing it.'});
  if(/cash|money|not enough left|short of money|cash flow/i.test(latest))c.push({priority:90,objective:'trace_money',layer:'finance',text:'When the money comes in, what usually takes it back out again?',why:'The cash signal matters, but I need to understand where the money goes before deciding what is constraining it.'});
- if(!rel.ready&&meaningful.length>=2)c.push({priority:94,objective:'test_relationship',layer:null,text:relationshipQuestion(signals,evidence),why:'I have several signals, but no evidence-backed relationship yet. I need to test the connection before deeper interpretation.'});
+ const adaptive=adaptiveEconomicQuestion(latest,evidence,signals);
+ if(adaptive&&!rel.ready)c.push(adaptive);
+ if(!rel.ready&&meaningful.length>=2&&!adaptive)c.push({priority:94,objective:'test_relationship',layer:null,text:relationshipQuestion(signals,evidence),why:'I have several signals, but no evidence-backed relationship yet. I need to test the connection before deeper interpretation.'});
  const adjacency={owner:['customer','offer','organization'],offer:['customer','revenue','operations'],customer:['revenue','market','offer'],revenue:['customer','finance','offer'],market:['customer','external','offer'],operations:['offer','organization','finance'],finance:['revenue','customer','operations'],organization:['owner','operations','commercial'],commercial:['revenue','operations','organization'],external:['market','operations','finance']};
  const active=[...(evidence||[]).map(e=>e.layer),...(signals||[]).flatMap(s=>s.relatedLayers||[])].filter(Boolean),anchor=active[active.length-1]||'owner';
- for(const layer of(adjacency[anchor]||LAYERS))if(!seen.has(layer))c.push({priority:60,objective:'material_gap',layer,text:questionForLayer(layer,latest),why:'This checks a material adjacent part of the business so the active signal is not interpreted in isolation.'});
+ for(const layer of(adjacency[anchor]||LAYERS))if(!seen.has(layer))c.push({priority:40,objective:'material_gap',layer,text:questionForLayer(layer,latest),why:'This checks an adjacent part of the business only when the current evidence does not already provide a higher-value line of investigation.'});
  if(meaningful.length>=2&&!decisionContextReady({latest,evidence}))c.push({priority:70,objective:'decision_context',layer:'owner',text:'What are you most worried about getting wrong here, or what decision are you trying to make?',why:'I need the owner’s decision or concern to focus the investigation on what matters most.'});
  for(const g of(openGaps||[]))if(g?.question&&!hasQuestion(questions,g.question)){const score=(g.importance==='high'?20:0)+(g.diagnosticImpact==='high'?15:0)+(g.decisionImpact==='high'?10:0)+(g.relationshipImpact==='high'?10:0);c.push({priority:30+score,objective:'open_gap',layer:g.relatedLayer||null,text:g.question,why:'This is an unresolved information gap that could materially change the investigation.'});}
  return c.filter(x=>x.text&&!hasQuestion(questions,x.text));
@@ -88,7 +100,7 @@ function applyController(data,state){
  const plan=state.nextBestQuestion;if(!plan){out.next_question=null;return out;}
  const providerQ=out.next_question?.text||'';
  const generic=/anything else about|before i look at the full picture|how the money moves through the business/i.test(providerQ);
- const mustControl=state.stage==='ORIENTATION'||!state.relationshipReadiness.ready||['resolve_contradiction','verify_inference','clarify_active_signal','trace_money','test_relationship','decision_context'].includes(plan.objective)||generic||!providerQ;
+ const mustControl=state.stage==='ORIENTATION'||!state.relationshipReadiness.ready||['resolve_contradiction','verify_inference','clarify_active_signal','trace_money','test_relationship','test_economic_mechanism','test_delivery_economics','decision_context'].includes(plan.objective)||generic||!providerQ;
  if(mustControl)out.next_question={text:plan.text,why:plan.why,replies:[]};
  return out;
 }
