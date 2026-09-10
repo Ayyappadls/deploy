@@ -36,12 +36,7 @@ function buildFrontendIndex(){
   window.__dlsDiscoveryAssessment = function(){
     const s=window.__dlsBackendDiscoveryState;
     if(!s) return null;
-    return {
-      sufficient: !!s.complete,
-      reason: s.complete ? 'The business reality and its key relationships are sufficiently established to move forward.' : 'A key relationship, evidence gap, contradiction, or decision context still needs to be investigated.',
-      confidence: s.complete ? 0.75 : 0.35,
-      backend: true
-    };
+    return {sufficient:!!s.complete,reason:s.complete?'The business reality and its key relationships are sufficiently established to move forward.':'A key relationship, evidence gap, contradiction, or decision context still needs to be investigated.',confidence:s.complete?0.75:0.35,backend:true};
   };
 })();
 </script>`;
@@ -57,14 +52,20 @@ function createApp({ provider, providerLabel, rateLimit, store, nodeEnv }) {
  app.use(express.static(__dirname));
  app.post('/api/mirror/init',(req,res)=>{const {businessId,mirrorId}=store.createBusiness();res.status(201).json({ok:true,businessId,mirrorId});});
  app.get('/api/mirror/:businessId',(req,res)=>{const record=store.get(req.params.businessId);if(!record)return res.status(404).json({ok:false,error:{code:'INVALID_REQUEST',message:'No Business Mirror found for that id.'}});res.json({ok:true,businessId:record.businessId,mirrorId:record.mirrorId,updatedAt:record.updatedAt,state:record.state});});
- app.post('/api/mirror/:businessId',(req,res)=>{const {state}=req.body||{};if(typeof state!=='object'||state===null)return res.status(400).json({ok:false,error:{code:'INVALID_REQUEST',message:'state must be an object.'}});const saved=store.save(req.params.businessId,state);if(!saved)return res.status(404).json({ok:false,error:{code:'INVALID_REQUEST',message:'No Business Mirror found for that id.'}});res.json({ok:true,businessId:saved.businessId,updatedAt:saved.updatedAt});});
+ app.post('/api/mirror/:businessId',(req,res)=>{const {state}=req.body||{};if(typeof state!=='object'||state===null)return res.status(400).json({ok:false,error:{code:'INVALID_REQUEST',message:'state must be an object.'}});const saved=store.save(req.params.businessId,state);if(!saved)return res.status(404).json({ok:false,error:{code:'INVALID_REQUEST',message:'No Business Mirror found for that id.'}});res.json({ok:true,businessId:req.params.businessId,updatedAt:saved.updatedAt});});
  app.post('/api/reason',async(req,res)=>{const requestId=genRequestId(),sessionId=req.headers['x-dls-session-id']||'unknown',startedAt=Date.now(),ip=req.ip||req.connection?.remoteAddress||'unknown';const limitResult=rateLimit(ip);if(limitResult.limited)return res.status(429).json({ok:false,requestId,error:{code:'RATE_LIMITED',message:'DLSMirror is receiving requests faster than it can process them right now. Please wait a moment and try again.'}});const invalidReason=validateReasonRequest(req.body);if(invalidReason)return res.status(400).json({ok:false,requestId,error:{code:'INVALID_REQUEST',message:'This request is not valid: '+invalidReason}});const {stage,language,payload}=req.body;if(!provider)return res.status(500).json({ok:false,requestId,error:{code:'AUTHENTICATION_ERROR',message:'DLSMirror reasoning is not configured on this server.'}});if(stage==='discover'&&isNonBusinessGreeting(latestOwnerMessage(payload?.conversationTranscript))){const data=greetingDiscoveryResponse(language);logReasoningEvent({requestId,sessionId,stage,startedAt,success:true,provider:'input-gate'});return res.status(200).json({ok:true,requestId,data});}
  try { const result=await reason(stage,language||'English',payload,provider); logReasoningEvent({requestId,sessionId,stage,startedAt,success:result.ok,errorCode:result.ok?undefined:result.error.code,provider:providerLabel}); if(!result.ok){const statusMap={SCHEMA_VALIDATION_FAILED:502,INVALID_MODEL_RESPONSE:502,PROVIDER_UNAVAILABLE:503,PROVIDER_TIMEOUT:504,RATE_LIMITED:429,AUTHENTICATION_ERROR:500,INVALID_REQUEST:400};return res.status(statusMap[result.error.code]||500).json({ok:false,requestId,error:result.error});}
  let data=result.data;
  if(stage==='discover'){
-   const discovery=computeDiscoveryState({transcript:payload?.conversationTranscript||'',evidenceOnFile:payload?.evidenceOnFile||[],signals:payload?.signals||[],openGaps:payload?.openGaps||[],contradictions:payload?.contradictions||data.contradictions||[],relationships:payload?.relationships||[]});
    const combinedEvidence=[...(payload?.evidenceOnFile||[]),...(data.evidence||[])];
-   data.relationships=(data.relationships||[]).filter(r=>supportedEvidence(r,{evidence:combinedEvidence,evidenceOnFile:combinedEvidence}));
+   const candidateSignals=[...(payload?.signals||[]),...(data.signals||[])];
+   const candidateContradictions=[...(payload?.contradictions||[]),...(data.contradictions||[])];
+   const candidateRelationships=[...(payload?.relationships||[]),...(data.relationships||[])];
+   const acceptedRelationships=candidateRelationships.filter(r=>supportedEvidence(r,{evidence:combinedEvidence,evidenceOnFile:combinedEvidence},candidateSignals));
+   const uniqueRelationships=[]; const relationshipKeys=new Set();
+   for(const r of acceptedRelationships){const key=[r.signalAId,r.signalBId,r.type,[...(r.supportingEvidenceIds||[])].sort().join(',')].join('|');if(!relationshipKeys.has(key)){relationshipKeys.add(key);uniqueRelationships.push(r);}}
+   const discovery=computeDiscoveryState({transcript:payload?.conversationTranscript||'',evidenceOnFile:combinedEvidence,signals:candidateSignals,openGaps:[...(payload?.openGaps||[]),...(data.knowledge_gaps||[])],contradictions:candidateContradictions,relationships:uniqueRelationships});
+   data.relationships=uniqueRelationships;
    data=applyController(data,discovery);
    data.discoveryState={stage:discovery.stage,evidenceCount:discovery.evidenceCount,factCount:discovery.factCount,activeSignalCount:discovery.activeSignalCount,materialUnknownCount:discovery.materialUnknownCount,contradictionCount:discovery.contradictionCount,relationshipReadiness:discovery.relationshipReadiness,decisionContextReady:discovery.decisionContextReady,coreContextReady:discovery.coreContextReady,complete:discovery.complete,nextObjective:discovery.nextBestQuestion?.objective||null,nextLayer:discovery.nextBestQuestion?.layer||null};
  }

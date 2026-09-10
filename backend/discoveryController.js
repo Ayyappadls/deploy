@@ -23,18 +23,17 @@ function questionForLayer(layer,latest){
 }
 function evidenceIds(e=[]){return new Set((e||[]).map(x=>x?.id).filter(Boolean));}
 function evidenceStatus(id,evidence=[]){const e=(evidence||[]).find(x=>x?.id===id);return String(e?.evidenceStatus||'').toUpperCase();}
-function supportedRelationship(r,evidence=[]){
- const ids=evidenceIds(evidence),refs=Array.isArray(r?.supportingEvidenceIds)?r.supportingEvidenceIds:[];
- if(refs.length<2||!refs.every(id=>ids.has(id)))return false;
- const statuses=refs.map(id=>evidenceStatus(id,evidence));
- if(statuses.some(s=>WEAK_STATUSES.has(s)||!FACT_STATUSES.has(s)))return false;
+function supportedRelationship(r,evidence=[],signals=[]){
+ const ids=evidenceIds(evidence),refs=Array.isArray(r?.supportingEvidenceIds)?r.supportingEvidenceIds:[],signalIds=new Set((signals||[]).map(s=>s?.id).filter(Boolean));
+ if(refs.length<2||new Set(refs).size<2||!refs.every(id=>ids.has(id)))return false;
  if(!r?.signalAId||!r?.signalBId||r.signalAId===r.signalBId)return false;
+ if(!signalIds.has(r.signalAId)||!signalIds.has(r.signalBId))return false;
  if(!['CAUSES','CORRELATES_WITH','CONTRIBUTES_TO'].includes(r?.type))return false;
  if(Array.isArray(r.contradictionIds)&&r.contradictionIds.length)return false;
- return true;
+ return refs.every(id=>FACT_STATUSES.has(evidenceStatus(id,evidence)));
 }
 function relationshipReadiness({evidence,signals,relationships=[]}){
- const explicit=(relationships||[]).filter(r=>supportedRelationship(r,evidence));
+ const explicit=(relationships||[]).filter(r=>supportedRelationship(r,evidence,signals));
  return {ready:explicit.length>0,explicitCount:explicit.length,crossLayerSignalCount:0};
 }
 function decisionContextReady({latest,evidence}){
@@ -44,6 +43,16 @@ function decisionContextReady({latest,evidence}){
 function alreadyResolvedCustomerMix(evidence=[],transcript=''){
  const text=[String(transcript||''),...(evidence||[]).map(e=>e.normalizedMeaning||e.originalStatement||'')].join(' ');
  return /(fewer|less) customers?.{0,120}(spend|buy|purchase)|(spend|buy|purchase).{0,120}(less|lower).{0,120}customers?|both.{0,80}customers?/i.test(text)&&/customer/i.test(text);
+}
+function relationshipQuestion(signals=[],evidence=[]){
+ const active=(signals||[]).filter(s=>s?.id).slice(0,3);
+ if(active.length>=2){
+  const names=active.slice(0,2).map(s=>String(s.signal||s.name||'this change').trim()).filter(Boolean);
+  if(names.length===2)return`You mentioned ${names[0]} and ${names[1]}. Do you think they are connected, or could they be separate issues? What makes you say that?`;
+ }
+ const layers=[...new Set((evidence||[]).map(e=>e?.layer).filter(Boolean))].slice(-2);
+ if(layers.length===2)return`Two parts of the business are changing at the same time. Do you see a connection between ${layers[0]} and ${layers[1]}, or are they separate? What have you observed?`;
+ return'You mentioned a few things changing at the same time. Which of them do you think is connected to another, if any, and what makes you say that?';
 }
 function buildCandidates({latest,evidence,signals,openGaps,contradictions,questions,relationships,transcript}){
  const c=[],meaningful=meaningfulEvidence(evidence),seen=new Set((evidence||[]).map(e=>e.layer));
@@ -55,7 +64,7 @@ function buildCandidates({latest,evidence,signals,openGaps,contradictions,questi
  const customerMixKnown=alreadyResolvedCustomerMix(evidence,transcript);
  if(/sales?\s*(are|is|have|has)?\s*(slow|down|fall|drop|declin)|fewer customers|customers?\s*(are|have|are not)\s*(coming|buying)|revenue\s*(is|has)\s*(down|fall)/i.test(latest)&&!customerMixKnown)c.push({priority:92,objective:'clarify_active_signal',layer:/customer/i.test(latest)?'customer':'revenue',text:/customer/i.test(latest)?'When you say customers have changed, are fewer people coming, or are they buying less when they come?':'When you say sales are down, is it mainly fewer customers, smaller purchases, or both?',why:'I want to define the change clearly before testing what is causing it.'});
  if(/cash|money|not enough left|short of money|cash flow/i.test(latest))c.push({priority:90,objective:'trace_money',layer:'finance',text:'When the money comes in, what usually takes it back out again?',why:'The cash signal matters, but I need to understand where the money goes before deciding what is constraining it.'});
- if(!rel.ready&&meaningful.length>=2)c.push({priority:94,objective:'test_relationship',layer:null,text:'You mentioned a few things changing at the same time. Which of these do you think is directly connected to the other — and what makes you say that?',why:'I have several signals, but no evidence-backed relationship yet. I need to test the connection before deeper interpretation.'});
+ if(!rel.ready&&meaningful.length>=2)c.push({priority:94,objective:'test_relationship',layer:null,text:relationshipQuestion(signals,evidence),why:'I have several signals, but no evidence-backed relationship yet. I need to test the connection before deeper interpretation.'});
  const adjacency={owner:['customer','offer','organization'],offer:['customer','revenue','operations'],customer:['revenue','market','offer'],revenue:['customer','finance','offer'],market:['customer','external','offer'],operations:['offer','organization','finance'],finance:['revenue','customer','operations'],organization:['owner','operations','commercial'],commercial:['revenue','operations','organization'],external:['market','operations','finance']};
  const active=[...(evidence||[]).map(e=>e.layer),...(signals||[]).flatMap(s=>s.relatedLayers||[])].filter(Boolean),anchor=active[active.length-1]||'owner';
  for(const layer of(adjacency[anchor]||LAYERS))if(!seen.has(layer))c.push({priority:60,objective:'material_gap',layer,text:questionForLayer(layer,latest),why:'This checks a material adjacent part of the business so the active signal is not interpreted in isolation.'});
