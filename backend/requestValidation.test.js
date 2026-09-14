@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateReasonRequest, MAX_TRANSCRIPT_CHARS, MAX_ARRAY_ITEMS } = require('../reasoning/requestValidation');
+const { validateReasonRequest, MAX_TRANSCRIPT_CHARS, MAX_ARRAY_ITEMS } = require('./requestValidation');
 
 test('accepts a well-formed discover request', () => {
   const reason = validateReasonRequest({ stage: 'discover', language: 'English', payload: { conversationTranscript: 'hi', evidenceOnFile: [], openGaps: [] } });

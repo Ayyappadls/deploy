@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createRateLimiter } = require('../rateLimiter');
+const { createRateLimiter } = require('./rateLimiter');
 
 test('rateLimiter: allows up to max requests within the window', () => {
   const limit = createRateLimiter({ windowMs: 60000, max: 3 });

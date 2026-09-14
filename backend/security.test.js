@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const frontendSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'index.html'), 'utf8');
+const frontendSrc = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 
 test('security: frontend never references api.anthropic.com', () => {
   assert.ok(!frontendSrc.includes('api.anthropic.com'));
@@ -23,14 +23,14 @@ test('security: frontend\'s only network calls are to its own backend (/api/reas
 });
 
 test('security: only server.js reads process.env.ANTHROPIC_API_KEY directly (comments mentioning the name elsewhere are fine)', () => {
-  const backendDir = path.join(__dirname, '..');
+  const backendDir = __dirname;
   const offenders = [];
   function walk(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.name === 'node_modules' || entry.name === 'data' || entry.name === 'test') continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) { walk(full); continue; }
-      if (!entry.name.endsWith('.js')) continue;
+      if (!entry.name.endsWith('.js') || entry.name.endsWith('.test.js')) continue;
       const content = fs.readFileSync(full, 'utf8');
       if (content.includes('process.env.ANTHROPIC_API_KEY') && entry.name !== 'server.js') {
         offenders.push(full);

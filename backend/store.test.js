@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { MirrorStore } = require('../persistence/store');
+const { MirrorStore } = require('./store');
 
 function tempStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dlsmirror-test-'));

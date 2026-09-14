@@ -17,13 +17,6 @@ function chooseFallbackQuestion(){ return null; }
 function buildRequest(stage, language, payload) {
   const pre = prompts.sysPreamble(language);
   switch (stage) {
-    case 'discover': {
-      const priorQuestions=extractPriorQuestions(payload.conversationTranscript||'');
-      const latestQuestion=priorQuestions.length?priorQuestions[priorQuestions.length-1]:'';
-      const rawGaps=Array.isArray(payload.openGaps)?payload.openGaps:[];
-      const openGaps=rawGaps.filter(g=>!latestQuestion||!questionIsRepeat(g.question,[latestQuestion]));
-      return {system:pre+prompts.DISCOVERY_INSTRUCTIONS,user:`Conversation so far:\n${payload.conversationTranscript||''}\n\nEvidence already on file:\n${JSON.stringify(payload.evidenceOnFile||[])}\n\nOpen knowledge gaps:\n${JSON.stringify(openGaps)}\n\nPrior DLSMirror questions (anti-repeat only):\n${JSON.stringify(priorQuestions)}`,progression:{priorQuestions,latestQuestion,openGaps}};
-    }
     case 'understand': return {system:pre+prompts.UNDERSTAND_INSTRUCTIONS,user:`Evidence:\n${JSON.stringify(payload.evidence||[])}\n\nSignals:\n${JSON.stringify(payload.signals||[])}`};
     case 'diagnose': return {system:pre+prompts.DIAGNOSE_INSTRUCTIONS,user:`Evidence:\n${JSON.stringify(payload.evidence||[])}\n\nRelationships:\n${JSON.stringify(payload.relationships||[])}\n\nPattern:\n${JSON.stringify(payload.pattern||null)}`};
     case 'transition': return {system:pre+prompts.TRANSITION_INSTRUCTIONS,user:`Diagnosis:\n${JSON.stringify(payload.diagnosis||null)}\n\nCommercial thesis:\n${JSON.stringify(payload.thesis||null)}`};
@@ -36,7 +29,7 @@ function buildRequest(stage, language, payload) {
 async function callWithRetry(provider,system,user){try{return await provider.generate({system,user});}catch(err){if(err.code==='PROVIDER_UNAVAILABLE'||err.code==='PROVIDER_TIMEOUT'){await new Promise(r=>setTimeout(r,400));return provider.generate({system,user});}throw err;}}
 async function reason(stage,language,payload,provider){
   if(stage==='discover'){
-    try{return {ok:true,...await runDiscoveryPipeline({provider,language,transcript:payload.conversationTranscript||'',evidenceOnFile:payload.evidenceOnFile||[],askedObjectives:payload.askedObjectives||[],relationships:payload.relationships||[],turnIndex:payload.turnIndex||0})};}
+    try{return {ok:true,...await runDiscoveryPipeline({provider,language,transcript:payload.conversationTranscript||'',evidenceOnFile:payload.evidenceOnFile||[],signalsOnFile:payload.signalsOnFile||[],relationshipsOnFile:payload.relationshipsOnFile||[],openGapsOnFile:payload.openGaps||[],contradictionsOnFile:payload.contradictionsOnFile||[],turnIndex:payload.turnIndex||0})};}
     catch(err){return {ok:false,error:{code:err.code||'PROVIDER_UNAVAILABLE',message:'DLSMirror discovery reasoning is temporarily unavailable.'}};}
   }
   const built=buildRequest(stage,language,payload);if(!built)return {ok:false,error:{code:'INVALID_REQUEST',message:`Unknown reasoning stage: ${stage}`}};

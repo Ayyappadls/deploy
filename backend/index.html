@@ -439,39 +439,10 @@ function verifyEvidence(evidenceId, verificationData){
 }
 
 /* ============================= DISCOVERY SUFFICIENCY ENGINE (deterministic, app-owned) ============================= */
-function evaluateDiscoverySufficiency(){
-  const openGaps = state.reality.knowledgeGaps.filter(g=>!g.resolved);
-  const criticalGaps = openGaps.filter(g=>g.importance==='high');
-  const unresolvedContradictions = state.reality.contradictions.filter(c=>!c.resolved);
-  const activeSignals = state.reality.signals.filter(s=>s.status==='active');
-  const weakHighSeveritySignals = activeSignals.filter(s=>signalStrength(s)==='weak' && s.severity==='high');
-  const untestedRelationships = (activeSignals.length>=2 && state.reality.relationships.length===0)
-    ? ['Multiple signals are active but haven\u2019t been connected to each other yet'] : [];
-  const evidenceCount = state.reality.evidence.length;
-  const decisionContextComplete = evidenceCount>=3 && activeSignals.length>=1;
-
-  const sufficient = unresolvedContradictions.length===0 && criticalGaps.length===0 &&
-    weakHighSeveritySignals.length===0 && untestedRelationships.length===0 && decisionContextComplete;
-
-  let reason;
-  if(unresolvedContradictions.length) reason = 'There\u2019s something that doesn\u2019t quite add up yet: '+unresolvedContradictions[0].note;
-  else if(criticalGaps.length) reason = 'A piece of information that would materially change the picture is still missing.';
-  else if(weakHighSeveritySignals.length) reason = 'An important signal isn\u2019t backed by enough evidence yet: '+weakHighSeveritySignals[0].signal;
-  else if(untestedRelationships.length) reason = untestedRelationships[0];
-  else if(evidenceCount<3) reason = 'Not enough has been shared yet to responsibly form a view.';
-  else reason = 'Core reality, signals, and relationships are understood well enough to move forward.';
-
-  const assessment = {
-    realityCoverage: Math.min(1, evidenceCount/6),
-    criticalUnknowns: criticalGaps.map(g=>g.question),
-    unresolvedContradictions: unresolvedContradictions.map(c=>c.note),
-    unsupportedSignals: weakHighSeveritySignals.map(s=>s.signal),
-    untestedRelationships, decisionContextComplete, sufficient, reason,
-    confidence: sufficient ? 0.7 : 0.35,
-  };
-  state.reality.discoveryAssessment = assessment;
-  return assessment;
-}
+/* Discovery sufficiency is now decided server-side, in discoveryController.js
+   (deterministic, not visible or influenceable by the model) and mirrored
+   into state.reality.discoveryAssessment inside startOrContinueDiscovery().
+   There is intentionally no local re-derivation of that decision here. */
 
 /* ============================= DEMO-MODE SEEDED ENGINE (unchanged, offline, illustrative only) ============================= */
 const THEMES = {
@@ -618,9 +589,14 @@ async function callDLSReasoning(stage, payload){
 function transcript(){ return state.conversation.map(t=>(t.role==='owner'?'Owner: ':'DLSMirror: ')+t.text).join('\n'); }
 function compactEvidenceForPrompt(){ return state.reality.evidence.map(e=>({id:e.id, statement:e.normalizedMeaning||e.statement, layer:e.layer, evidenceStatus:e.evidenceStatus})); }
 function compactGapsForPrompt(){ return state.reality.knowledgeGaps.filter(g=>!g.resolved).map(g=>({question:g.question, missingInformation:g.missingInformation, importance:g.importance})); }
-function compactSignalsForPrompt(){ return state.reality.signals.map(s=>({id:s.id, signal:s.signal, severity:s.severity, relatedLayers:s.relatedLayers})); }
+function compactSignalsForPrompt(){ return state.reality.signals.map(s=>({id:s.id, signal:s.signal, severity:s.severity, relatedLayers:s.relatedLayers, supportingEvidenceIds:s.supportingEvidenceIds})); }
+function compactRelationshipsForPrompt(){ return state.reality.relationships.map(r=>({id:r.id, signalAId:r.signalAId, signalBId:r.signalBId, type:r.type, relationship:r.relationship, supportingEvidenceIds:r.supportingEvidenceIds, status:r.status})); }
+function compactContradictionsForPrompt(){ return state.reality.contradictions.filter(c=>!c.resolved).map(c=>({statementA:c.statementA, statementB:c.statementB, note:c.note})); }
 
-/* ============================= LIVE ENGINE: DISCOVERY (app owns sufficiency + verification) ============================= */
+/* ============================= LIVE ENGINE: DISCOVERY (backend owns sufficiency + verification) =============================
+   The completion decision (discoveryState.complete) is computed server-side by discoveryController.js,
+   which is deterministic and untouchable by the model. This function's job is to faithfully mirror
+   whatever the backend decided into local state for rendering \u2014 not to re-decide it locally. */
 async function startOrContinueDiscovery(ownerText){
   const answeredGapId = state.pendingGapId;
   state.conversation.push({role:'owner', text: ownerText});
@@ -630,8 +606,13 @@ async function startOrContinueDiscovery(ownerText){
     const result = await callDLSReasoning('discover', {
       conversationTranscript: transcript(),
       evidenceOnFile: compactEvidenceForPrompt(),
+      signalsOnFile: compactSignalsForPrompt(),
+      relationshipsOnFile: compactRelationshipsForPrompt(),
       openGaps: compactGapsForPrompt(),
+      contradictionsOnFile: compactContradictionsForPrompt(),
+      turnIndex: state.discoveryTurnIndex,
     });
+    state.discoveryTurnIndex += 1;
 
     // 1) resolve whatever gap the just-asked question targeted
     if(answeredGapId){
@@ -646,30 +627,29 @@ async function startOrContinueDiscovery(ownerText){
       }
     }
 
-    // 2) commit new evidence, tracked by local key for same-turn cross-referencing
-    const keyToEvidenceId = {};
+    // 2) commit new evidence \u2014 using the id the BACKEND already assigned, so
+    // continuity (signal/relationship id references) survives across turns.
     (result.evidence||[]).slice(0,3).forEach(e=>{
-      if(!e || !e.normalizedMeaning || !e.layer) return;
-      const item = { id:genId('ev'), statement:e.originalStatement||e.normalizedMeaning, normalizedMeaning:e.normalizedMeaning,
+      if(!e || !e.id || !e.normalizedMeaning || !e.layer) return;
+      const item = { id:e.id, statement:e.originalStatement||e.normalizedMeaning, normalizedMeaning:e.normalizedMeaning,
         source:'owner_conversation', layer:e.layer, evidenceStatus:e.evidenceStatus||'OWNER-PROVIDED', timestamp:Date.now(),
         supportingEvidenceIds:[], contradictingEvidenceIds:[], relatedSignalIds:[], relatedRelationshipIds:[],
         verification:{required:false, status:'not_required', question:'', method:''} };
       item.confidence = evidenceConfidence(item, state.reality.evidence);
       state.reality.evidence.push(item);
-      if(e.key) keyToEvidenceId[e.key] = item.id;
       addGraphNode('evidence', item.id, item.normalizedMeaning, item.confidence);
       if((item.evidenceStatus==='INFERRED' || item.evidenceStatus==='HYPOTHESIS') && e.verificationQuestion){
         createVerificationGap(item, e.verificationQuestion);
       }
     });
 
-    // 3) commit signals, resolving supportingEvidenceKeys -> real ids (new keys or existing ids)
+    // 3) commit signals \u2014 again using the backend's own id.
     const validEvIds = knownEvidenceIds();
     const hasContra = (result.contradictions||[]).length>0;
     (result.signals||[]).slice(0,2).forEach(s=>{
-      if(!s || !s.signal) return;
-      const resolvedIds = (s.supportingEvidenceKeys||[]).map(k=>keyToEvidenceId[k]||k).filter(id=>validEvIds.includes(id));
-      const sig = { id:genId('sig'), signal:s.signal, type:s.type||'commercial', severity:s.severity||'medium', relatedLayers:s.relatedLayers||[],
+      if(!s || !s.id || !s.signal) return;
+      const resolvedIds = (s.supportingEvidenceIds||[]).filter(id=>validEvIds.includes(id));
+      const sig = { id:s.id, signal:s.signal, type:s.type||'commercial', severity:s.severity||'medium', relatedLayers:s.relatedLayers||[],
         supportingEvidenceIds:resolvedIds, status:'active', timestamp:Date.now() };
       sig.confidence = signalConfidence(sig, hasContra);
       state.reality.signals.push(sig);
@@ -681,7 +661,7 @@ async function startOrContinueDiscovery(ownerText){
     (result.knowledge_gaps||[]).slice(0,2).forEach(g=>{
       if(!g || !g.question) return;
       if(!state.reality.knowledgeGaps.find(x=>x.question===g.question)){
-        state.reality.knowledgeGaps.push({ id:genId('gap'), question:g.question, missingInformation:g.missingInformation||'',
+        state.reality.knowledgeGaps.push({ id:g.id||genId('gap'), question:g.question, missingInformation:g.missingInformation||'',
           importance:g.importance||'medium', diagnosticImpact:g.diagnosticImpact||'medium', decisionImpact:g.decisionImpact||'medium',
           relationshipImpact:g.relationshipImpact||'low', relatedLayer:g.relatedLayer||'commercial', timestamp:Date.now(), resolved:false });
       }
@@ -697,8 +677,35 @@ async function startOrContinueDiscovery(ownerText){
       }
     });
 
-    // 6) app decides sufficiency \u2014 deterministically, no question-count cap
-    const assessment = evaluateDiscoverySufficiency();
+    // 5b) commit relationships proposed and evidence-checked DURING Discovery
+    // itself (not deferred to a later stage) \u2014 this is what lets "no
+    // relationship -> no completion" actually be enforceable while Discovery
+    // is still open, instead of only after it has already ended.
+    const knownSigIds = state.reality.signals.map(s=>s.id);
+    (result.relationships||[]).forEach(r=>{
+      if(!r || !r.id || !r.signalAId || !r.signalBId) return;
+      if(!knownSigIds.includes(r.signalAId) || !knownSigIds.includes(r.signalBId)) return;
+      if(state.reality.relationships.some(x=>x.id===r.id)) return;
+      const citedIds = (r.supportingEvidenceIds||[]).filter(id=>validEvIds.includes(id));
+      const rel = { id:r.id, signalAId:r.signalAId, signalBId:r.signalBId, relationship:r.relationship||'',
+        type:r.type||'CORRELATES_WITH', supportingEvidenceIds:citedIds, status: citedIds.length>=2 ? 'supported' : 'hypothesis', timestamp:Date.now() };
+      state.reality.relationships.push(rel);
+      addGraphNode('relationship', rel.id, rel.relationship, rel.status==='supported' ? 0.5 : 0.3);
+      citedIds.forEach(eid=>addGraphEdge(eid, rel.id, 'SUPPORTS', 'evidence supports this relationship', undefined, [eid]));
+    });
+
+    // 6) the BACKEND decided sufficiency \u2014 deterministically, in
+    // discoveryController.js, which the browser cannot see or influence.
+    // Mirror that decision rather than re-deriving a local one.
+    const backendState = result.discoveryState || {};
+    const assessment = {
+      sufficient: !!backendState.complete,
+      reason: backendState.complete ? 'Core reality, signals, and relationships are understood well enough to move forward.'
+        : (backendState.nextBestQuestion ? backendState.nextBestQuestion.why : 'Still gathering enough to responsibly form a view.'),
+      objective: backendState.nextBestQuestion ? backendState.nextBestQuestion.objective : null,
+      backend: true,
+    };
+    state.reality.discoveryAssessment = assessment;
     if(assessment.sufficient){
       state.discoveryStep = 'sufficient';
       state.currentQuestion = null;
@@ -943,7 +950,7 @@ function emptyReality(){
 let state = {
   demoMode:false, stage:'discover', lang:'en',
   discoveryStep:'input', userText:'', theme:null, replyChoice:null,
-  conversation:[], currentQuestion:null, pendingGapId:null,
+  conversation:[], currentQuestion:null, pendingGapId:null, discoveryTurnIndex:0,
   reality: emptyReality(),
   live:{ understand:undefined, diagnose:undefined, transition:undefined, behavior:undefined, stakeholder:undefined },
   stakeholder:'owner', openLayers:{}, loopSignal:false, leftOpen:false, visited:{discover:true},
@@ -1455,7 +1462,7 @@ async function resetAll(demoMode){
   const freshMirrorId = demoMode ? null : state.mirrorId;
   state = {
     demoMode: demoMode, stage:'discover', lang: lang, discoveryStep:'input', userText:'', theme:null, replyChoice:null,
-    conversation:[], currentQuestion:null, pendingGapId:null,
+    conversation:[], currentQuestion:null, pendingGapId:null, discoveryTurnIndex:0,
     reality: emptyReality(),
     live:{ understand:undefined, diagnose:undefined, transition:undefined, behavior:undefined, stakeholder:undefined },
     stakeholder:'owner', openLayers:{}, loopSignal:false, leftOpen:false, visited:{discover:true},

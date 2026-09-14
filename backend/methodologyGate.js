@@ -6,10 +6,13 @@ function arr(v){return Array.isArray(v)?v:[];} function str(v){return typeof v==
 function evidenceIdSet(p){return new Set(arr(p?.evidence).concat(arr(p?.evidenceOnFile)).map(e=>e?.id).filter(Boolean));}
 function evidenceById(p){const m=new Map();for(const e of arr(p?.evidence).concat(arr(p?.evidenceOnFile)))if(e?.id)m.set(e.id,e);return m;}
 function materialEvidence(p){return arr(p?.evidence).concat(p?.evidence?[]:arr(p?.evidenceOnFile)).filter(e=>e&&str(e.normalizedMeaning||e.statement));}
+function signalIdSet(p){return new Set(arr(p?.signals).map(s=>s?.id).filter(Boolean));}
 function supportedEvidence(r,p){
  const byId=evidenceById(p), refs=arr(r?.supportingEvidenceIds);
  if(refs.length<2||!refs.every(id=>byId.has(id)))return false;
  if(!str(r?.signalAId)||!str(r?.signalBId)||r.signalAId===r.signalBId)return false;
+ const sids=signalIdSet(p);
+ if(!sids.has(r.signalAId)||!sids.has(r.signalBId))return false;
  if(!RELATIONSHIP_TYPES.has(r?.type))return false;
  if(arr(r?.contradictionIds).length)return false;
  return refs.every(id=>FACT_STATUSES.has(str(byId.get(id)?.evidenceStatus).toUpperCase()));

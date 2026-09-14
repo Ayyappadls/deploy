@@ -5,10 +5,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { createApp } = require('../server');
-const { MockProvider } = require('../providers/MockProvider');
-const { createRateLimiter } = require('../rateLimiter');
-const { MirrorStore } = require('../persistence/store');
+const { createApp } = require('./server');
+const { MockProvider } = require('./MockProvider');
+const { DiscoveryLocalProvider } = require('./DiscoveryLocalProvider');
+const { createRateLimiter } = require('./rateLimiter');
+const { MirrorStore } = require('./store');
 
 /**
  * WHAT THIS TEST PROVES, AND WHAT IT DOESN'T
@@ -45,7 +46,7 @@ const OWNER_TURNS = [
 async function withServer(fn) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dlsmirror-scenario-'));
   const app = createApp({
-    provider: new MockProvider(),
+    provider: new DiscoveryLocalProvider(new MockProvider()),
     providerLabel: 'mock',
     rateLimit: createRateLimiter({ windowMs: 60000, max: 1000 }),
     store: new MirrorStore({ dataDir }),

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { MockProvider } = require('../providers/MockProvider');
-const { validate } = require('../reasoning/schemas');
+const { MockProvider } = require('./MockProvider');
+const { validate } = require('./schemas');
 
 const provider = new MockProvider();
 
@@ -86,7 +86,10 @@ test('local engine: Understand only cites signal ids that were actually given to
     { id: 'sig_abc', signal: 'Cash visibility gap despite normal sales activity', severity: 'high', relatedLayers: ['commercial'] },
     { id: 'sig_def', signal: 'A meaningful share of revenue is tied up in customer credit', severity: 'medium', relatedLayers: ['customer'] },
   ];
-  const evidence = [{ id: 'ev_1', statement: 'x', layer: 'commercial', evidenceStatus: 'OWNER-PROVIDED' }];
+  const evidence = [
+    { id: 'ev_1', statement: 'x', layer: 'commercial', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'ev_2', statement: 'y', layer: 'customer', evidenceStatus: 'OWNER-PROVIDED' },
+  ];
   const raw = await provider.generate({ system: 'Your job is UNDERSTAND blah', user: `Evidence:\n${JSON.stringify(evidence)}\n\nSignals:\n${JSON.stringify(signals)}` });
   const data = JSON.parse(raw);
   assert.equal(validate('understand', data), null);

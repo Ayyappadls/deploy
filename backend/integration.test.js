@@ -5,10 +5,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { createApp } = require('../server');
-const { MockProvider } = require('../providers/MockProvider');
-const { createRateLimiter } = require('../rateLimiter');
-const { MirrorStore } = require('../persistence/store');
+const { createApp } = require('./server');
+const { MockProvider } = require('./MockProvider');
+const { DiscoveryLocalProvider } = require('./DiscoveryLocalProvider');
+const { createRateLimiter } = require('./rateLimiter');
+const { MirrorStore } = require('./store');
 
 /** Boots a real HTTP server on an ephemeral port for the duration of one test. */
 async function withServer(opts, fn) {
@@ -34,7 +35,7 @@ async function withServer(opts, fn) {
 const STAGES = ['discover', 'understand', 'diagnose', 'transition', 'behavior', 'stakeholder', 'learning'];
 
 test('integration: /api/health reports ok and provider label', async () => {
-  await withServer({ provider: new MockProvider(), providerLabel: 'mock' }, async (base) => {
+  await withServer({ provider: new DiscoveryLocalProvider(new MockProvider()), providerLabel: 'mock' }, async (base) => {
     const res = await fetch(`${base}/api/health`);
     const json = await res.json();
     assert.equal(json.ok, true);
@@ -43,7 +44,7 @@ test('integration: /api/health reports ok and provider label', async () => {
 });
 
 test('integration: every one of the seven stages returns ok:true through the real HTTP path', async () => {
-  await withServer({ provider: new MockProvider(), providerLabel: 'mock' }, async (base) => {
+  await withServer({ provider: new DiscoveryLocalProvider(new MockProvider()), providerLabel: 'mock' }, async (base) => {
     for (const stage of STAGES) {
       const res = await fetch(`${base}/api/reason`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -58,7 +59,7 @@ test('integration: every one of the seven stages returns ok:true through the rea
 });
 
 test('integration: unsupported stage is rejected with 400 before touching the provider', async () => {
-  const provider = new MockProvider();
+  const provider = new DiscoveryLocalProvider(new MockProvider());
   let called = false;
   const originalGenerate = provider.generate.bind(provider);
   provider.generate = async (...args) => { called = true; return originalGenerate(...args); };
@@ -89,7 +90,7 @@ test('integration: no provider configured returns AUTHENTICATION_ERROR, never a 
 });
 
 test('integration: rate limiting returns 429 once the configured max is exceeded', async () => {
-  await withServer({ provider: new MockProvider(), providerLabel: 'mock', rateLimit: createRateLimiter({ windowMs: 60000, max: 2 }) }, async (base) => {
+  await withServer({ provider: new DiscoveryLocalProvider(new MockProvider()), providerLabel: 'mock', rateLimit: createRateLimiter({ windowMs: 60000, max: 2 }) }, async (base) => {
     const send = () => fetch(`${base}/api/reason`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: 'discover', language: 'English', payload: { conversationTranscript: '', evidenceOnFile: [], openGaps: [] } }),
@@ -104,7 +105,7 @@ test('integration: rate limiting returns 429 once the configured max is exceeded
 });
 
 test('integration: oversized payload is rejected with INVALID_REQUEST', async () => {
-  await withServer({ provider: new MockProvider(), providerLabel: 'mock' }, async (base) => {
+  await withServer({ provider: new DiscoveryLocalProvider(new MockProvider()), providerLabel: 'mock' }, async (base) => {
     const res = await fetch(`${base}/api/reason`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: 'discover', language: 'English', payload: { conversationTranscript: 'x'.repeat(50000), evidenceOnFile: [], openGaps: [] } }),
@@ -116,7 +117,7 @@ test('integration: oversized payload is rejected with INVALID_REQUEST', async ()
 });
 
 test('integration: Business Mirror can be created, saved to, and recovered (leave-and-return)', async () => {
-  await withServer({ provider: new MockProvider(), providerLabel: 'mock' }, async (base) => {
+  await withServer({ provider: new DiscoveryLocalProvider(new MockProvider()), providerLabel: 'mock' }, async (base) => {
     const initRes = await fetch(`${base}/api/mirror/init`, { method: 'POST' });
     const init = await initRes.json();
     assert.equal(initRes.status, 201);
@@ -138,7 +139,7 @@ test('integration: Business Mirror can be created, saved to, and recovered (leav
 });
 
 test('integration: an unknown businessId returns 404, never someone else\'s data', async () => {
-  await withServer({ provider: new MockProvider(), providerLabel: 'mock' }, async (base) => {
+  await withServer({ provider: new DiscoveryLocalProvider(new MockProvider()), providerLabel: 'mock' }, async (base) => {
     const res = await fetch(`${base}/api/mirror/biz_does_not_exist`);
     assert.equal(res.status, 404);
   });

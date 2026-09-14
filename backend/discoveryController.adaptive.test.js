@@ -33,7 +33,7 @@ test('SaaS discovery moves from known context to customer economics instead of p
   ];
   const s = state(transcript,evidence,signals);
   assert.notEqual(s.nextBestQuestion?.objective,'material_gap');
-  assert.notMatch(s.nextBestQuestion?.text||'',/what do you mainly sell|who usually buys/i);
+  assert.doesNotMatch(s.nextBestQuestion?.text||'',/what do you mainly sell|who usually buys/i);
   assert.ok(['test_customer_economics','quantify_cost_to_serve','test_reusability','test_relationship'].includes(s.nextBestQuestion?.objective));
 });
 
@@ -51,7 +51,7 @@ test('known product and customer facts block template re-entry', () => {
     {id:'s3',signal:'Customization is increasing',severity:'high',relatedLayers:['customer','operations']}
   ];
   const s = state(transcript,evidence,signals);
-  assert.notMatch(s.nextBestQuestion?.text||'',/what do you mainly sell|who usually buys/i);
+  assert.doesNotMatch(s.nextBestQuestion?.text||'',/what do you mainly sell|who usually buys/i);
 });
 
 test('different business realities produce different next objectives', () => {

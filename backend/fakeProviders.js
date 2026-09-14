@@ -1,4 +1,4 @@
-const { ReasoningProvider } = require('../providers/ReasoningProvider');
+const { ReasoningProvider } = require('./ReasoningProvider');
 
 /** Always returns the given (already-JSON-stringified) response. */
 class FixedProvider extends ReasoningProvider {

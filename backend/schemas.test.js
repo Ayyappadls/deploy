@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validate } = require('../reasoning/schemas');
+const { validate } = require('./schemas');
 
 test('discover: valid response passes', () => {
   const data = {
@@ -32,7 +32,7 @@ test('discover: rejects missing top-level array fields', () => {
 
 test('understand: valid response passes', () => {
   const data = {
-    relationships: [{ key: 'r1', signalAId: 'sig_1', signalBId: 'sig_2', relationship: 'x drives y', type: 'CONTRIBUTES_TO', supportingEvidenceIds: ['ev_1'] }],
+    relationships: [{ key: 'r1', signalAId: 'sig_1', signalBId: 'sig_2', relationship: 'x drives y', type: 'CONTRIBUTES_TO', supportingEvidenceIds: ['ev_1', 'ev_2'] }],
     pattern: { statement: 'Growth is consuming cash.', supportingRelationshipKeys: ['r1'], supportingSignalIds: ['sig_1', 'sig_2'] },
   };
   assert.equal(validate('understand', data), null);

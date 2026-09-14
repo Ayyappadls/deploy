@@ -197,3 +197,51 @@ test('exact clothing-shop scenario remains in discovery without a supported rela
   assert.equal(s.nextBestQuestion.objective, 'test_relationship');
   assert.match(s.nextBestQuestion.text, /connected|separate/i);
 });
+
+test('an unresolved high-priority gap whose question already looks "asked" does not starve the controller of every candidate (must not go silent)', () => {
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Customers regularly buy on credit rather than paying at the time of sale.', layer: 'customer', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e2', normalizedMeaning: 'A portion of customer receivables are three to six months overdue.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' },
+  ];
+  const signals = [
+    { id: 's1', signal: 'A meaningful share of revenue is tied up in customer credit', severity: 'medium', relatedLayers: ['customer'] },
+    { id: 's2', signal: 'Aging receivables are tying up cash for months at a time', severity: 'high', relatedLayers: ['finance'] },
+  ];
+  const openGaps = [{ id: 'g1', question: 'About how much, in total, is overdue by more than three months?', importance: 'high', diagnosticImpact: 'high', decisionImpact: 'medium', relationshipImpact: 'medium', relatedLayer: 'finance' }];
+  // The transcript already contains this exact question from an earlier
+  // turn (asked, but never actually resolved -- the owner talked about
+  // something else instead).
+  const transcript = 'Owner: some overdue stuff\nDLSMirror: About how much, in total, is overdue by more than three months?\nOwner: i also owe money to my suppliers, so it is tight both ways';
+  const state = computeDiscoveryState({ transcript, evidenceOnFile: evidence, signals, openGaps, contradictions: [], relationships: [] });
+  assert.equal(state.materialUnknownCount, 1, 'the gap is still genuinely open');
+  assert.equal(state.complete, false, 'must not be complete while a material unknown remains');
+  assert.ok(state.nextBestQuestion, 'the controller must still have SOMETHING to ask, not go silent');
+});
+
+test('REGRESSION (reported live bug): a sustained hypothesis whose trigger condition stays true does not get re-asked -- it cascades through the related question family instead', () => {
+  // Reconstructs the reported failure: owner confirms "customer complexity is
+  // raising cost-to-serve" repeatedly. The underlying trigger condition
+  // (econ && service text patterns) stays true for the rest of the
+  // conversation, exactly as it would in production, since evidence is never
+  // retracted. If the controller only checked the trigger condition, it would
+  // re-select the same objective forever. It must instead recognize the
+  // objective was already asked and move to the next thing worth testing.
+  const evidence = [
+    { id: 'e1', normalizedMeaning: 'Revenue has been growing steadily.', layer: 'revenue', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e2', normalizedMeaning: 'Despite revenue growth, profit and cash have not improved.', layer: 'finance', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e3', normalizedMeaning: 'Customers increasingly require customization and custom work.', layer: 'customer', evidenceStatus: 'OWNER-PROVIDED' },
+    { id: 'e4', normalizedMeaning: 'That customization drives more support, implementation, and engineering delivery effort.', layer: 'operations', evidenceStatus: 'OWNER-PROVIDED' },
+  ];
+  const signals = [{ id: 's1', signal: 'Revenue growth may be masking deteriorating customer economics', severity: 'high', relatedLayers: ['revenue', 'customer'] }];
+  let transcript = 'Owner: revenue is growing but profit is not, customers need customization, support and engineering effort is rising';
+  const asked = [];
+  for (let turn = 1; turn <= 3; turn++) {
+    const state = computeDiscoveryState({ transcript, evidenceOnFile: evidence, signals, openGaps: [], contradictions: [], relationships: [] });
+    assert.ok(state.nextBestQuestion, 'turn ' + turn + ' must produce a question, not go silent');
+    assert.ok(!asked.includes(state.nextBestQuestion.text), 'turn ' + turn + ' repeated a question verbatim: ' + state.nextBestQuestion.text);
+    asked.push(state.nextBestQuestion.text);
+    transcript += '\nDLSMirror: ' + state.nextBestQuestion.text + '\nOwner: yes, that keeps being true, I see the same pattern again';
+  }
+  assert.equal(new Set(asked).size, 3, 'all three turns must ask genuinely different questions');
+  assert.deepEqual(asked.map(() => true), [true, true, true]);
+});
