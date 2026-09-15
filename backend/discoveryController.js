@@ -37,6 +37,16 @@ function questionForLayer(layer,latest){
  return'What outside change do you think may be affecting the business right now?';
 }
 function relationshipQuestion(signals=[],evidence=[]){const names=signalNames(signals),text=evidenceText(evidence);if(names.length>=2)return`You mentioned ${names[0]} and ${names[1]}. Do you think they are connected, or could they be separate issues? What makes you say that?`;if(/revenue/i.test(text)&&/profit|cash|margin/i.test(text)&&/cost|support|engineering|salary|expense/i.test(text))return'Your revenue is growing, but profit or cash is not improving while costs are rising. Do you think the extra revenue is coming with higher costs to serve customers? What have you observed?';if(/customer|client/i.test(text)&&/custom|support|implementation|service/i.test(text)&&/engineering|operation|cost/i.test(text))return'You mentioned customers need more customization or support, while delivery effort is increasing. Do you think the customer requirements are driving the higher delivery cost? What have you observed?';return'There are several changes showing up in the business. Which of them do you think are connected, if any, and what makes you say that?';}
+// A signal is a hypothesis: a pattern noticed in the evidence. "Introduced"
+// is not "tested" -- a signal counts as tested only once it has either (a)
+// had its own dedicated question asked (reusing the same hasQuestion
+// matcher already trusted for anti-repeat elsewhere), or (b) been
+// confirmed via a supported relationship to another signal (reusing
+// supportedRelationship, already the standard for rel.ready). No new
+// per-signal field or parallel state model -- both checks run entirely off
+// data that already exists.
+function signalTestQuestion(signal){const t=String(signal?.signal||'').trim();if(!t)return'';return`You mentioned ${t.charAt(0).toLowerCase()+t.slice(1)}. What's actually driving that, and how much is it affecting things day to day?`;}
+function isSignalTested(signal,questions,relationships,evidence,signals){if(hasQuestion(questions,signalTestQuestion(signal)))return true;return(relationships||[]).some(r=>(r?.signalAId===signal.id||r?.signalBId===signal.id)&&supportedRelationship(r,evidence,signals));}
 function materialPatternCandidates(latest,evidence,signals,questions){
  const text=`${latest} ${evidenceText(evidence)}`.toLowerCase(),c=[];
  const add=(priority,objective,text,why)=>{if(text&&!hasQuestion(questions,text))c.push({priority,objective,text,why});};
@@ -63,6 +73,16 @@ function buildCandidates({latest,evidence,signals,openGaps,contradictions,questi
  let gapCandidatesAdded=0;
  for(const g of highGaps)if(g?.question&&!hasQuestion(questions,g.question)){const score=(g.importance==='high'?20:0)+(g.diagnosticImpact==='high'?15:0)+(g.decisionImpact==='high'?10:0)+(g.relationshipImpact==='high'?10:0);add(80+score,'open_gap',g.question,'This is an unresolved information gap that could materially change the investigation.',g.relatedLayer||null);gapCandidatesAdded++;}
  if(meaningful.length>=2&&!decisionContextReady({latest,evidence}))add(70,'decision_context','What are you most worried about getting wrong here, or what decision are you trying to make?','I need the owner’s decision or concern to focus the investigation on what matters most.','owner');
+ // A signal that exists but was never individually tested (no dedicated
+ // question asked, no supported relationship confirming it) is exactly the
+ // gap the preferred tiers above can miss once their narrow trigger
+ // conditions stop matching. This tier is hypothesis-shaped, not
+ // conversation-shaped: it doesn't inspect what the signal's text says, so
+ // it applies to any signal in any conversation, not just this one.
+ for(const s of(signals||[]).filter(x=>x&&x.status==='active'&&!isSignalTested(x,questions,relationships,evidence,signals))){
+   const tq=signalTestQuestion(s);
+   if(tq)add(60,'test_signal',tq,'This signal has been raised but not yet independently tested -- testing it directly is more valuable than a generic adjacent-layer question.',(s.relatedLayers||[])[0]||null);
+ }
  const adjacency={owner:['customer','offer','organization'],offer:['customer','revenue','operations'],customer:['revenue','market','offer'],revenue:['customer','finance','offer'],market:['customer','external','offer'],operations:['offer','organization','finance'],finance:['revenue','customer','operations'],organization:['owner','operations','commercial'],commercial:['revenue','operations','organization'],external:['market','operations','finance']};
  const active=[...(evidence||[]).map(e=>e.layer),...(signals||[]).flatMap(s=>s.relatedLayers||[])].filter(Boolean),anchor=active[active.length-1]||'owner';
  // Fall back to an adjacent, unexplored layer whenever nothing else produced
@@ -78,11 +98,16 @@ function computeDiscoveryState({transcript='',evidenceOnFile=[],signals=[],openG
  const latest=latestOwner(transcript),evidence=Array.isArray(evidenceOnFile)?evidenceOnFile:[],questions=dlsQuestions(transcript),meaningful=meaningfulEvidence(evidence),rel=relationshipReadiness({evidence,signals,relationships}),decisionReady=decisionContextReady({latest,evidence}),candidates=buildCandidates({latest,evidence,signals,openGaps,contradictions,questions,relationships,transcript});
  candidates.sort((a,b)=>b.priority-a.priority);
  const materialUnknowns=(openGaps||[]).filter(g=>g&&(g.importance==='high'||g.diagnosticImpact==='high'||g.decisionImpact==='high'||g.relationshipImpact==='high'));
+ const untested=(signals||[]).filter(s=>s&&s.status==='active'&&!isSignalTested(s,questions,relationships,evidence,signals));
  const stage=!meaningful.length&&!SUBSTANTIVE.test(latest)?'ORIENTATION':signals.length?'SIGNAL_INVESTIGATION':'BUSINESS_REALITY';
  const factCount=meaningful.filter(e=>FACT_STATUSES.has(String(e.evidenceStatus||'').toUpperCase())).length;
  const coreContext=hasLayer(evidence,'owner')&&(hasLayer(evidence,'customer')||hasLayer(evidence,'offer'))&&hasLayer(evidence,'revenue');
- const complete=factCount>=5&&signals.length>=1&&rel.ready&&materialUnknowns.length===0&&!(contradictions||[]).length&&coreContext&&decisionReady;
- return{stage,latest,questions,evidenceCount:meaningful.length,factCount,activeSignalCount:signals.length,materialUnknownCount:materialUnknowns.length,contradictionCount:(contradictions||[]).length,relationshipReadiness:rel,decisionContextReady:decisionReady,coreContextReady:coreContext,candidates,nextBestQuestion:candidates[0]||null,complete};
+ // Evidence/a signal existing in a layer is not the same as the hypothesis
+ // it represents having been tested -- this is the one new term: no
+ // completion while any active signal remains untested, regardless of how
+ // many of the other conditions are already satisfied.
+ const complete=factCount>=5&&signals.length>=1&&rel.ready&&materialUnknowns.length===0&&untested.length===0&&!(contradictions||[]).length&&coreContext&&decisionReady;
+ return{stage,latest,questions,evidenceCount:meaningful.length,factCount,activeSignalCount:signals.length,materialUnknownCount:materialUnknowns.length,untestedSignalCount:untested.length,contradictionCount:(contradictions||[]).length,relationshipReadiness:rel,decisionContextReady:decisionReady,coreContextReady:coreContext,candidates,nextBestQuestion:candidates[0]||null,complete};
 }
 function applyController(data,state){
  const out={...data};
@@ -91,9 +116,9 @@ function applyController(data,state){
  const providerQ=out.next_question?.text||'';
  const generic=/anything else about|before i look at the full picture|how the money moves through the business/i.test(providerQ);
  const ontology=/what do you mainly sell or provide|who usually buys from you|has anything changed outside the business|what outside change do you think/i.test(providerQ);
- const controllerObjectives=['orient','resolve_contradiction','verify_inference','clarify_active_signal','trace_money','test_relationship','test_economic_mechanism','test_delivery_economics','test_customer_economics','quantify_cost_to_serve','test_reusability','distinguish_economic_driver','quantify_economic_change','test_owner_complexity','test_decision_dependency','decision_context','open_gap'];
+ const controllerObjectives=['orient','resolve_contradiction','verify_inference','clarify_active_signal','trace_money','test_relationship','test_signal','test_economic_mechanism','test_delivery_economics','test_customer_economics','quantify_cost_to_serve','test_reusability','distinguish_economic_driver','quantify_economic_change','test_owner_complexity','test_decision_dependency','decision_context','open_gap'];
  const mustControl=state.stage==='ORIENTATION'||!state.relationshipReadiness.ready||controllerObjectives.includes(plan.objective)||generic||ontology||!providerQ;
  if(mustControl)out.next_question={text:plan.text,why:plan.why,replies:[]};
  return out;
 }
-module.exports={computeDiscoveryState,applyController,latestOwner,ownerTurns,dlsQuestions,norm,relationshipReadiness,supportedRelationship};
+module.exports={computeDiscoveryState,applyController,latestOwner,ownerTurns,dlsQuestions,norm,relationshipReadiness,supportedRelationship,signalTestQuestion,isSignalTested};

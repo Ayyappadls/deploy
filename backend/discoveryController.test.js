@@ -245,3 +245,60 @@ test('REGRESSION (reported live bug): a sustained hypothesis whose trigger condi
   assert.equal(new Set(asked).size, 3, 'all three turns must ask genuinely different questions');
   assert.deepEqual(asked.map(() => true), [true, true, true]);
 });
+
+test('candidate starvation (exact reported scenario, reconstructed): once preferred candidates and the 3-layer adjacency fallback are exhausted, an untested signal still produces a question, not null', () => {
+  const evidence = [
+    { id:'e1', normalizedMeaning:'Owner shared additional detail: turn 1', layer:'commercial', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e2', normalizedMeaning:'The business itself owes a meaningful amount to its own suppliers.', layer:'finance', evidenceStatus:'OWNER-PROVIDED' },
+  ];
+  const signals = [{ id:'s1', signal:'Supplier obligations are adding pressure alongside slow customer collections', severity:'medium', relatedLayers:['finance'], status:'active' }];
+  // The exact 3 adjacency-fallback questions for anchor='finance' already asked, verbatim, in prior turns.
+  const transcript = [
+    'Owner: t1',
+    'DLSMirror: When you say the business is changing, what has happened to the money coming in compared with before?',
+    'Owner: t2',
+    'DLSMirror: When customers buy from you, what has changed recently in how often or how much they buy?',
+    'Owner: t3',
+    'DLSMirror: What has become harder to deliver or manage day to day compared with before?',
+    'Owner: t4 (latest)',
+  ].join('\n');
+  const state = computeDiscoveryState({ transcript, evidenceOnFile: evidence, signals, openGaps: [], contradictions: [], relationships: [] });
+  assert.notEqual(state.nextBestQuestion, null, 'must not go silent once an untested signal exists');
+  assert.equal(state.nextBestQuestion.objective, 'test_signal');
+  assert.equal(state.untestedSignalCount, 1);
+});
+
+test('evidence-exists-but-untested: coreContext-satisfying evidence across owner/customer/revenue does not make an unrelated, untested signal count as resolved', () => {
+  const evidence = [
+    { id:'e1', normalizedMeaning:'Owner evidence', layer:'owner', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e2', normalizedMeaning:'Customer evidence', layer:'customer', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e3', normalizedMeaning:'Revenue evidence', layer:'revenue', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e4', normalizedMeaning:'Finance evidence', layer:'finance', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e5', normalizedMeaning:'More finance evidence', layer:'finance', evidenceStatus:'OWNER-PROVIDED' },
+  ];
+  const signals = [{ id:'s1', signal:'A pattern that was never individually asked about', severity:'high', relatedLayers:['finance'], status:'active' }];
+  const state = computeDiscoveryState({ transcript: 'Owner: I want to decide what to do about this', evidenceOnFile: evidence, signals, openGaps: [], contradictions: [], relationships: [] });
+  assert.equal(state.coreContextReady, true, 'coreContext is satisfied by design in this fixture');
+  assert.equal(state.untestedSignalCount, 1, 'but the signal itself was never tested');
+  assert.equal(state.complete, false, 'must not complete solely because evidence exists in the right layers');
+});
+
+test('genuine completion remains reachable once every active signal is actually tested', () => {
+  const evidence = [
+    { id:'e1', normalizedMeaning:'Owner evidence', layer:'owner', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e2', normalizedMeaning:'Customer evidence', layer:'customer', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e3', normalizedMeaning:'Revenue evidence', layer:'revenue', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e4', normalizedMeaning:'Finance evidence', layer:'finance', evidenceStatus:'OWNER-PROVIDED' },
+    { id:'e5', normalizedMeaning:'More finance evidence', layer:'finance', evidenceStatus:'OWNER-PROVIDED' },
+  ];
+  const signals = [
+    { id:'s1', signal:'First tested signal', severity:'high', relatedLayers:['finance'], status:'active' },
+    { id:'s2', signal:'Second tested signal', severity:'high', relatedLayers:['customer'], status:'active' },
+  ];
+  const relationships = [{ id:'r1', signalAId:'s1', signalBId:'s2', type:'CONTRIBUTES_TO', relationship:'x drives y', supportingEvidenceIds:['e1','e2'] }];
+  const transcript = 'Owner: I want to decide what to do about this, and things have changed a lot';
+  const state = computeDiscoveryState({ transcript, evidenceOnFile: evidence, signals, openGaps: [], contradictions: [], relationships });
+  assert.equal(state.untestedSignalCount, 0, 'both signals are tested via the supported relationship');
+  assert.equal(state.relationshipReadiness.ready, true);
+  assert.equal(state.complete, true, 'completion must still be reachable when hypotheses really are tested');
+});
