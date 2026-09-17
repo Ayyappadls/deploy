@@ -1,1 +1,0 @@
-Discovery state-integrity patch branch. Intended fixes: preserve signal status across round-trips; resolve material gaps only when subsequent evidence actually supplies the missing information; add regression coverage for both behaviors and the exact electrical/plumbing Discovery scenario. This branch is intentionally separate from main until validation is complete.
